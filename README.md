@@ -1,2 +1,2 @@
 # openlauncher
-The open-source android headunit launcher that looks good.
+The open-source Android headunit launcher that finally looks good.
