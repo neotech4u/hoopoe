@@ -1,3 +1,4 @@
+<img width="1920" height="1080" alt="open-launcherbanner" src="https://github.com/user-attachments/assets/cef3c385-9665-4290-84fb-ea271fd4824d" />
 <div align="center">
   <h1>Open Launcher</h1>
   <p><strong>An open-source, offline-first Android launcher built specifically for aftermarket car head units.</strong></p>
@@ -38,6 +39,11 @@ I designed this launcher around that reality. It is built to be functional witho
 ## ✨ Current Features
 
 This project is currently in active development, but the core foundation is highly customizable:
+
+<img width="2400" height="896" alt="Screenshot_20260527-025436" src="https://github.com/user-attachments/assets/a1bc63f3-2d4e-4ac0-bd56-b5d181681658" />
+<img width="2400" height="896" alt="Screenshot_20260527-025446" src="https://github.com/user-attachments/assets/b079208f-acac-4d3f-80c5-a7ea59f3e6bf" />
+<img width="2400" height="896" alt="Screenshot_20260527-025451" src="https://github.com/user-attachments/assets/cc038c53-dcf5-4b4b-bd73-bfcd18bd82d2" />
+
 
 * **Customizable Left Sidebar:** Add, swap, and rearrange your most-used app shortcuts on the fly.
 * **Modular Home Dashboard:** A dynamic widget system with pre-made widget panes that you can resize, rearrange, and toggle on or off.
