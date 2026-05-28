@@ -78,8 +78,10 @@ Speed and distance calculations use a rewritten GPS math layer with improved fil
 ### 🎨 Deep Personalization
 Accent color, background color, gradient, wallpaper with adjustable dim, font weight, text scale, UI scale, and app font — all tunable from the settings menu, which is organized into logical sections (Appearance, Layout, Widgets, System).
 
-### 📱 Picture-in-Picture (PiP) Overlay
-Launch any app as a floating freeform window layered over the launcher. Assign your preferred PiP app from the home screen or the app library.
+### 📱 Picture-in-Picture (PiP) Overlay ⚠️ *Beta*
+Launch any app as a floating freeform window layered over the launcher.
+
+> **This feature is currently in beta and requires the special `openlauncher-test-pip` build.** It relies on AOSP platform-level signing to access the window embedding APIs. The standard APK does not include PiP — use the `test-pip` release asset if you want to try it. Expect rough edges: not all apps behave correctly in a freeform window, and compatibility varies heavily by head unit ROM. This is a work in progress.
 
 ### 🔔 First-Run Onboarding
 A clean onboarding flow on first launch explains key permissions (location, notification listener, draw-over-apps) before requesting them, with direct links to the relevant system settings screens.
