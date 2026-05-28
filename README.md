@@ -41,6 +41,7 @@ I designed this launcher around that reality. It is built to be functional witho
 This project is currently in active development, but the core foundation is highly customizable:
 
 <img width="2400" height="896" alt="Screenshot_20260527-025436" src="https://github.com/user-attachments/assets/a1bc63f3-2d4e-4ac0-bd56-b5d181681658" />
+<img width="2400" height="896" alt="Screenshot_20260527-212602" src="https://github.com/user-attachments/assets/cf319144-0a06-4bc6-ab83-855ef8514a9c" />
 <img width="2400" height="896" alt="Screenshot_20260527-025446" src="https://github.com/user-attachments/assets/b079208f-acac-4d3f-80c5-a7ea59f3e6bf" />
 <img width="2400" height="896" alt="Screenshot_20260527-025451" src="https://github.com/user-attachments/assets/cc038c53-dcf5-4b4b-bd73-bfcd18bd82d2" />
 
