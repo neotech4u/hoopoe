@@ -32,6 +32,8 @@ class SettingsRepository(private val context: Context) {
         val SHOW_CLOCK         = booleanPreferencesKey("show_clock")
         val SHOW_TELEMETRY     = booleanPreferencesKey("show_telemetry")
         val SHOW_NOW_PLAYING   = booleanPreferencesKey("show_now_playing")
+        val SHOW_ALTIMETER     = booleanPreferencesKey("show_altimeter")
+        val SHOW_SPEEDOMETER   = booleanPreferencesKey("show_speedometer")
         val SHORTCUTS_JSON     = stringPreferencesKey("shortcuts_json")
         val WIDGET_LAYOUT_JSON = stringPreferencesKey("widget_layout_json")
         val CAR_PLAY_PACKAGE      = stringPreferencesKey("car_play_package")
@@ -39,7 +41,10 @@ class SettingsRepository(private val context: Context) {
         val USE_GRADIENT          = booleanPreferencesKey("use_gradient")
         val GRADIENT_END_COLOR    = intPreferencesKey("gradient_end_color")
         val WALLPAPER_DIM         = floatPreferencesKey("wallpaper_dim")
-        val RIGHT_HAND_DRIVE      = booleanPreferencesKey("right_hand_drive")
+        val RIGHT_HAND_DRIVE      = booleanPreferencesKey("right_hand_drive") // kept for migration
+        val SIDEBAR_POSITION           = stringPreferencesKey("sidebar_position")
+        val BOTTOM_BAR_SHORTCUTS_RIGHT = booleanPreferencesKey("bottom_bar_shortcuts_right")
+        val DAY_NIGHT_MODE        = stringPreferencesKey("day_night_mode")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -79,6 +84,8 @@ class SettingsRepository(private val context: Context) {
                 showClock      = prefs[Keys.SHOW_CLOCK]       ?: defaults.showClock,
                 showTelemetry  = prefs[Keys.SHOW_TELEMETRY]   ?: defaults.showTelemetry,
                 showNowPlaying = prefs[Keys.SHOW_NOW_PLAYING] ?: defaults.showNowPlaying,
+                showAltimeter   = prefs[Keys.SHOW_ALTIMETER]   ?: defaults.showAltimeter,
+                showSpeedometer = prefs[Keys.SHOW_SPEEDOMETER] ?: defaults.showSpeedometer,
                 shortcuts      = shortcuts,
                 widgetLayout   = widgets,
                 carPlayPackage      = prefs[Keys.CAR_PLAY_PACKAGE]      ?: defaults.carPlayPackage,
@@ -86,7 +93,10 @@ class SettingsRepository(private val context: Context) {
                 useGradient      = prefs[Keys.USE_GRADIENT]        ?: defaults.useGradient,
                 gradientEndColor = prefs[Keys.GRADIENT_END_COLOR]  ?: defaults.gradientEndColor,
                 wallpaperDim     = prefs[Keys.WALLPAPER_DIM]       ?: defaults.wallpaperDim,
-                rightHandDrive   = prefs[Keys.RIGHT_HAND_DRIVE]    ?: defaults.rightHandDrive
+                sidebarPosition  = prefs[Keys.SIDEBAR_POSITION]?.let { runCatching { SidebarPosition.valueOf(it) }.getOrNull() }
+                                   ?: if (prefs[Keys.RIGHT_HAND_DRIVE] == true) SidebarPosition.RIGHT else defaults.sidebarPosition,
+                bottomBarShortcutsRight = prefs[Keys.BOTTOM_BAR_SHORTCUTS_RIGHT] ?: defaults.bottomBarShortcutsRight,
+                dayNightMode     = prefs[Keys.DAY_NIGHT_MODE]?.let { runCatching { DayNightMode.valueOf(it) }.getOrNull() } ?: defaults.dayNightMode
             )
         }
 
@@ -106,6 +116,8 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.SHOW_CLOCK]         = s.showClock
             prefs[Keys.SHOW_TELEMETRY]     = s.showTelemetry
             prefs[Keys.SHOW_NOW_PLAYING]   = s.showNowPlaying
+            prefs[Keys.SHOW_ALTIMETER]     = s.showAltimeter
+            prefs[Keys.SHOW_SPEEDOMETER]   = s.showSpeedometer
             prefs[Keys.SHORTCUTS_JSON]     = gson.toJson(s.shortcuts)
             prefs[Keys.WIDGET_LAYOUT_JSON] = gson.toJson(s.widgetLayout)
             prefs[Keys.CAR_PLAY_PACKAGE]      = s.carPlayPackage
@@ -113,7 +125,9 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.USE_GRADIENT]       = s.useGradient
             prefs[Keys.GRADIENT_END_COLOR] = s.gradientEndColor
             prefs[Keys.WALLPAPER_DIM]      = s.wallpaperDim
-            prefs[Keys.RIGHT_HAND_DRIVE]   = s.rightHandDrive
+            prefs[Keys.SIDEBAR_POSITION]           = s.sidebarPosition.name
+            prefs[Keys.BOTTOM_BAR_SHORTCUTS_RIGHT] = s.bottomBarShortcutsRight
+            prefs[Keys.DAY_NIGHT_MODE]     = s.dayNightMode.name
         }
     }
 

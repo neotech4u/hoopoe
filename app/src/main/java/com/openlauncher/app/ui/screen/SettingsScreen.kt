@@ -27,14 +27,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openlauncher.app.data.AppFont
 import com.openlauncher.app.data.AppSettings
-import com.openlauncher.app.data.ClockStyle
+import com.openlauncher.app.data.DayNightMode
+import com.openlauncher.app.data.SidebarPosition
 import com.openlauncher.app.data.ShortcutConfig
 import com.openlauncher.app.data.UnitSystem
+import com.openlauncher.app.ui.theme.LocalDayMode
+import com.openlauncher.app.util.SunriseSunset
 import com.openlauncher.app.ui.components.ColorPickerDialog
 import com.openlauncher.app.ui.components.ConfirmDialog
 
-private val FLAT_DIVIDER = Color(0xFF141414)
-private val SECTION_DIVIDER = Color(0xFF1E1E1E)
+// Resolved at call site via LocalDayMode — see SettingsDivider / SettingsSection
 
 @Composable
 fun SettingsScreen(
@@ -42,8 +44,6 @@ fun SettingsScreen(
     accent: Color,
     onUpdate: (AppSettings.() -> AppSettings) -> Unit,
     onReset: () -> Unit,
-    onStartCarPlayPicker: () -> Unit,
-    onStartAndroidAutoPicker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -66,11 +66,13 @@ fun SettingsScreen(
         }
     }
 
-    // Explicit background so the pane is always opaque — not transparent over wallpaper
+    val isDayMode = LocalDayMode.current
+    val screenBg  = if (isDayMode) Color(0xFFEEEEEE) else Color(0xFF000000)
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF000000))
+            .background(screenBg)
     ) {
     Column(
         modifier = Modifier
@@ -83,15 +85,16 @@ fun SettingsScreen(
         Text(
             text          = "SETTINGS",
             style         = MaterialTheme.typography.titleLarge,
-            color         = accent,
+            color         = if (isDayMode) Color(0xFF111111) else accent,
             letterSpacing = 3.sp,
             fontSize      = 14.sp
         )
 
         Spacer(Modifier.height(4.dp))
 
-        // ── System Launcher ──────────────────────────────────────────────────
-        SettingsSection("System") {
+        // ── Permissions ──────────────────────────────────────────────────────
+        SettingsSection("Permissions") {
+            val isMediaConnected by com.openlauncher.app.service.MediaListenerService.isConnected.collectAsState()
             SettingsButton(
                 label    = "Set as Default Launcher",
                 sublabel = "Open Android home app settings",
@@ -104,11 +107,7 @@ fun SettingsScreen(
                     )
                 }
             )
-        }
-
-        // ── Permissions ──────────────────────────────────────────────────────
-        SettingsSection("Permissions") {
-            val isMediaConnected by com.openlauncher.app.service.MediaListenerService.isConnected.collectAsState()
+            SettingsDivider()
             SettingsButton(
                 label    = "Notification Access",
                 sublabel = if (isMediaConnected) "Granted — media controls active" else "Required for Now Playing widget",
@@ -135,11 +134,11 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value         = nameInput,
                         onValueChange = { nameInput = it },
-                        placeholder   = { Text("MY CAR", color = Color(0xFF444444), fontSize = 12.sp) },
+                        placeholder   = { Text("MY CAR", color = if (isDayMode) Color(0xFF999999) else Color(0xFF444444), fontSize = 12.sp) },
                         singleLine    = true,
-                        textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, color = Color.White),
+                        textStyle     = LocalTextStyle.current.copy(fontSize = 12.sp, color = if (isDayMode) Color(0xFF111111) else Color.White),
                         colors        = outlinedFieldColors(accent),
-                        modifier      = Modifier.width(120.dp).height(40.dp)
+                        modifier      = Modifier.width(140.dp)
                     )
                     if (nameInput != settings.vehicleName) {
                         IconButton(onClick = { onUpdate { copy(vehicleName = nameInput) } }, modifier = Modifier.size(32.dp)) {
@@ -152,15 +151,52 @@ fun SettingsScreen(
             SettingsDivider()
 
             SettingsRow(
-                label    = "Right Hand Drive",
-                sublabel = "Move sidebar to the right side",
+                label    = "Sidebar Position",
+                sublabel = when (settings.sidebarPosition) {
+                    SidebarPosition.LEFT   -> "Left side"
+                    SidebarPosition.RIGHT  -> "Right side"
+                    SidebarPosition.BOTTOM -> "Bottom"
+                },
                 icon     = Icons.Default.SwapHoriz
             ) {
-                Switch(
-                    checked         = settings.rightHandDrive,
-                    onCheckedChange = { onUpdate { copy(rightHandDrive = it) } },
-                    colors          = switchColors(accent)
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SidebarPosition.entries.forEach { pos ->
+                        FilterChip(
+                            selected = settings.sidebarPosition == pos,
+                            onClick  = { onUpdate { copy(sidebarPosition = pos) } },
+                            label    = {
+                                Text(
+                                    when (pos) {
+                                        SidebarPosition.LEFT   -> "Left"
+                                        SidebarPosition.RIGHT  -> "Right"
+                                        SidebarPosition.BOTTOM -> "Bottom"
+                                    },
+                                    fontSize = 9.sp,
+                                    letterSpacing = 0.5.sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = accent,
+                                selectedLabelColor     = Color.Black
+                            )
+                        )
+                    }
+                }
+            }
+
+            if (settings.sidebarPosition == SidebarPosition.BOTTOM) {
+                SettingsDivider()
+                SettingsRow(
+                    label    = "Shortcuts Side",
+                    sublabel = if (settings.bottomBarShortcutsRight) "Right — nav buttons on left" else "Left — nav buttons on right",
+                    icon     = Icons.Default.FormatAlignRight
+                ) {
+                    Switch(
+                        checked         = settings.bottomBarShortcutsRight,
+                        onCheckedChange = { onUpdate { copy(bottomBarShortcutsRight = it) } },
+                        colors          = switchColors(accent)
+                    )
+                }
             }
         }
 
@@ -205,6 +241,50 @@ fun SettingsScreen(
 
         // ── Appearance ───────────────────────────────────────────────────────
         SettingsSection("Appearance") {
+            // Display Mode
+            SettingsRow(
+                label    = "Display Mode",
+                sublabel = when (settings.dayNightMode) {
+                    DayNightMode.DARK   -> "Always dark"
+                    DayNightMode.LIGHT  -> "Always light"
+                    DayNightMode.AUTO   -> "Sunrise / sunset"
+                    DayNightMode.SYSTEM -> "Follows system theme"
+                },
+                icon = when (settings.dayNightMode) {
+                    DayNightMode.DARK   -> Icons.Default.NightlightRound
+                    DayNightMode.LIGHT  -> Icons.Default.LightMode
+                    DayNightMode.AUTO   -> Icons.Default.Brightness4
+                    DayNightMode.SYSTEM -> Icons.Default.PhoneAndroid
+                }
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DayNightMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = settings.dayNightMode == mode,
+                            onClick  = { onUpdate { copy(dayNightMode = mode) } },
+                            label    = {
+                                Text(
+                                    text      = when (mode) {
+                                        DayNightMode.DARK   -> "Dark"
+                                        DayNightMode.LIGHT  -> "Light"
+                                        DayNightMode.AUTO   -> "Sunset"
+                                        DayNightMode.SYSTEM -> "System"
+                                    },
+                                    fontSize  = 9.sp,
+                                    letterSpacing = 0.5.sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = accent,
+                                selectedLabelColor     = Color.Black
+                            )
+                        )
+                    }
+                }
+            }
+
+            SettingsDivider()
+
             // Accent color
             SettingsRow(
                 label    = "Accent Color",
@@ -243,7 +323,7 @@ fun SettingsScreen(
                     if (settings.useGradient) {
                         androidx.compose.material3.Icon(
                             Icons.Default.ArrowForward, null,
-                            tint = Color(0xFF555555), modifier = Modifier.size(14.dp)
+                            tint = if (isDayMode) Color(0xFF999999) else Color(0xFF555555), modifier = Modifier.size(14.dp)
                         )
                         // End color swatch
                         Box(
@@ -366,77 +446,6 @@ fun SettingsScreen(
             }
         }
 
-        // ── Home Widgets ─────────────────────────────────────────────────────
-        SettingsSection("Home Widgets") {
-            SettingsRow(label = "Clock", sublabel = "Show clock widget", icon = Icons.Default.Schedule) {
-                Switch(checked = settings.showClock,
-                    onCheckedChange = { onUpdate { copy(showClock = it) } },
-                    colors = switchColors(accent))
-            }
-            SettingsDivider()
-            SettingsRow(label = "Weather", sublabel = "Show weather widget", icon = Icons.Default.WbSunny) {
-                Switch(checked = settings.showWeather,
-                    onCheckedChange = { onUpdate { copy(showWeather = it) } },
-                    colors = switchColors(accent))
-            }
-            SettingsDivider()
-            SettingsRow(label = "Telemetry / Compass", sublabel = "GPS coordinates & heading", icon = Icons.Default.Explore) {
-                Switch(checked = settings.showTelemetry,
-                    onCheckedChange = { onUpdate { copy(showTelemetry = it) } },
-                    colors = switchColors(accent))
-            }
-            SettingsDivider()
-            SettingsRow(label = "Now Playing", sublabel = "Media controls widget", icon = Icons.Default.MusicNote) {
-                Switch(checked = settings.showNowPlaying,
-                    onCheckedChange = { onUpdate { copy(showNowPlaying = it) } },
-                    colors = switchColors(accent))
-            }
-            SettingsDivider()
-            AppShortcutRow(
-                label    = "CarPlay App",
-                pkg      = settings.carPlayPackage,
-                icon     = Icons.Default.PhoneAndroid,
-                accent   = accent,
-                onClear  = { onUpdate { copy(carPlayPackage = "") } },
-                onPick   = onStartCarPlayPicker
-            )
-            SettingsDivider()
-            AppShortcutRow(
-                label    = "Android Auto App",
-                pkg      = settings.androidAutoPackage,
-                icon     = Icons.Default.DirectionsCar,
-                accent   = accent,
-                onClear  = { onUpdate { copy(androidAutoPackage = "") } },
-                onPick   = onStartAndroidAutoPicker
-            )
-            SettingsDivider()
-
-            // Clock style toggle
-            SettingsRow(label = "Clock Style", sublabel = settings.clockStyle.name.lowercase().replaceFirstChar { it.uppercaseChar() }, icon = Icons.Default.Watch) {
-                Row {
-                    FilterChip(
-                        selected = settings.clockStyle == ClockStyle.DIGITAL,
-                        onClick  = { onUpdate { copy(clockStyle = ClockStyle.DIGITAL) } },
-                        label    = { Text("Digital", fontSize = 11.sp) },
-                        colors   = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = accent,
-                            selectedLabelColor     = Color.Black
-                        )
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    FilterChip(
-                        selected = settings.clockStyle == ClockStyle.ANALOG,
-                        onClick  = { onUpdate { copy(clockStyle = ClockStyle.ANALOG) } },
-                        label    = { Text("Analog", fontSize = 11.sp) },
-                        colors   = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = accent,
-                            selectedLabelColor     = Color.Black
-                        )
-                    )
-                }
-            }
-        }
-
         // ── Units ────────────────────────────────────────────────────────────
         SettingsSection("Units") {
             SettingsRow(label = "Unit System", sublabel = if (settings.unitSystem == UnitSystem.METRIC) "Metric (°C, km)" else "Imperial (°F, mi)", icon = Icons.Default.Straighten) {
@@ -484,7 +493,7 @@ fun SettingsScreen(
 
         Text(
             text          = "Made by David Lam  ·  2026",
-            color         = Color(0xFF2A2A2A),
+            color         = if (isDayMode) Color(0xFFAAAAAA) else Color(0xFF2A2A2A),
             fontSize      = 10.sp,
             letterSpacing = 1.sp,
             modifier      = Modifier
@@ -540,17 +549,20 @@ private fun SettingsSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDayMode     = LocalDayMode.current
+    val sectionColor  = if (isDayMode) Color(0xFF888888) else Color(0xFF3A3A3A)
+    val dividerColor  = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1E1E1E)
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         Text(
             text          = title.uppercase(),
             style         = MaterialTheme.typography.labelSmall,
-            color         = Color(0xFF3A3A3A),
+            color         = sectionColor,
             letterSpacing = 2.sp,
             modifier      = Modifier.padding(top = 16.dp, bottom = 6.dp)
         )
-        HorizontalDivider(color = SECTION_DIVIDER)
+        HorizontalDivider(color = dividerColor)
         Column(modifier = Modifier.fillMaxWidth(), content = content)
-        HorizontalDivider(color = SECTION_DIVIDER)
+        HorizontalDivider(color = dividerColor)
     }
 }
 
@@ -561,18 +573,22 @@ private fun SettingsRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     content: @Composable RowScope.() -> Unit
 ) {
+    val isDayMode   = LocalDayMode.current
+    val labelColor  = if (isDayMode) Color(0xFF111111) else Color(0xFFDDDDDD)
+    val subColor    = if (isDayMode) Color(0xFF888888) else Color(0xFF444444)
+    val iconTint    = if (isDayMode) Color(0xFF777777) else MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 0.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFDDDDDD), fontSize = 13.sp)
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = labelColor, fontSize = 13.sp)
             if (sublabel.isNotEmpty())
-                Text(sublabel, style = MaterialTheme.typography.labelSmall, color = Color(0xFF444444), fontSize = 11.sp)
+                Text(sublabel, style = MaterialTheme.typography.labelSmall, color = subColor, fontSize = 11.sp)
         }
         content()
     }
@@ -586,6 +602,11 @@ private fun ColumnScope.SettingsButton(
     accent: Color,
     onClick: () -> Unit
 ) {
+    val isDayMode  = LocalDayMode.current
+    val labelColor = if (isDayMode) Color(0xFF111111) else Color(0xFFDDDDDD)
+    val subColor   = if (isDayMode) Color(0xFF888888) else Color(0xFF444444)
+    val chevronC   = if (isDayMode) Color(0xFFBBBBBB) else Color(0xFF2A2A2A)
+    val iconTint   = if (isDayMode) Color(0xFF777777) else MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -593,73 +614,61 @@ private fun ColumnScope.SettingsButton(
             .padding(horizontal = 0.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFDDDDDD), fontSize = 13.sp)
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = labelColor, fontSize = 13.sp)
             if (sublabel.isNotEmpty())
-                Text(sublabel, style = MaterialTheme.typography.labelSmall, color = Color(0xFF444444), fontSize = 11.sp)
+                Text(sublabel, style = MaterialTheme.typography.labelSmall, color = subColor, fontSize = 11.sp)
         }
-        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF2A2A2A), modifier = Modifier.size(16.dp))
+        Icon(Icons.Default.ChevronRight, null, tint = chevronC, modifier = Modifier.size(16.dp))
     }
 }
 
 @Composable
 private fun ColumnScope.SettingsDivider() {
-    HorizontalDivider(color = FLAT_DIVIDER)
+    val isDayMode = LocalDayMode.current
+    HorizontalDivider(color = if (isDayMode) Color(0xFFDDDDDD) else Color(0xFF141414))
 }
 
 @Composable
-private fun outlinedFieldColors(accent: Color) = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor   = accent,
-    unfocusedBorderColor = Color(0xFF2A2A2A),
-    focusedTextColor     = Color.White,
-    unfocusedTextColor   = Color.White,
-    cursorColor          = accent,
-    focusedLabelColor    = accent,
-    unfocusedLabelColor  = Color(0xFF666666)
-)
-
-@Composable
-private fun switchColors(accent: Color) = SwitchDefaults.colors(
-    checkedThumbColor  = Color.Black,
-    checkedTrackColor  = accent,
-    uncheckedTrackColor = Color(0xFF2A2A2A)
-)
-
-@Composable
-private fun sliderColors(accent: Color) = SliderDefaults.colors(
-    thumbColor            = accent,
-    activeTrackColor      = accent,
-    inactiveTrackColor    = Color(0xFF2A2A2A)
-)
-
-@Composable
-private fun ColumnScope.AppShortcutRow(
-    label: String,
-    pkg: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accent: Color,
-    onClear: () -> Unit,
-    onPick: () -> Unit
-) {
-    SettingsRow(
-        label    = label,
-        sublabel = pkg.ifEmpty { "Not configured" },
-        icon     = icon
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (pkg.isNotEmpty()) {
-                TextButton(onClick = onClear) {
-                    Text("CLEAR", color = Color(0xFF666666), fontSize = 9.sp, letterSpacing = 1.sp)
-                }
-            }
-            TextButton(onClick = onPick) {
-                Text("PICK", color = accent, fontSize = 9.sp, letterSpacing = 1.sp)
-            }
-        }
-    }
+private fun outlinedFieldColors(accent: Color): androidx.compose.material3.TextFieldColors {
+    val isDayMode = LocalDayMode.current
+    val textColor = if (isDayMode) Color(0xFF111111) else Color.White
+    val borderU   = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF2A2A2A)
+    return OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = accent,
+        unfocusedBorderColor = borderU,
+        focusedTextColor     = textColor,
+        unfocusedTextColor   = textColor,
+        cursorColor          = accent,
+        focusedLabelColor    = accent,
+        unfocusedLabelColor  = if (isDayMode) Color(0xFF888888) else Color(0xFF666666)
+    )
 }
+
+@Composable
+private fun switchColors(accent: Color): androidx.compose.material3.SwitchColors {
+    val isDayMode = LocalDayMode.current
+    return SwitchDefaults.colors(
+        checkedThumbColor    = if (isDayMode) Color.White else Color.Black,
+        checkedTrackColor    = accent,
+        uncheckedThumbColor  = if (isDayMode) Color(0xFFBBBBBB) else Color(0xFF888888),
+        uncheckedTrackColor  = if (isDayMode) Color(0xFFDDDDDD) else Color(0xFF1E1E1E),
+        uncheckedBorderColor = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF3A3A3A)
+    )
+}
+
+@Composable
+private fun sliderColors(accent: Color): androidx.compose.material3.SliderColors {
+    val isDayMode = LocalDayMode.current
+    return SliderDefaults.colors(
+        thumbColor         = accent,
+        activeTrackColor   = accent,
+        inactiveTrackColor = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF2A2A2A)
+    )
+}
+
 
 private fun fontDisplayName(font: AppFont): String = when (font) {
     AppFont.SYSTEM          -> "System"

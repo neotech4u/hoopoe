@@ -1,6 +1,8 @@
 package com.openlauncher.app.ui.widget
 
+import android.content.Intent
 import android.media.MediaMetadata
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,11 +46,19 @@ fun NowPlayingWidget(
     onLaunchCarPlay: () -> Unit,
     onLaunchAndroidAuto: () -> Unit,
     onTapToOpenApp: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEditing: Boolean = false,
+    isDayMode: Boolean = false
 ) {
+    val context     = LocalContext.current
+    val isConnected by MediaListenerService.isConnected.collectAsState()
+    val hasCarPlay  = carPlayPackage.isNotEmpty()
+    val hasAutoApp  = androidAutoPackage.isNotEmpty()
+    val hasContent  = state != null && state.title.isNotEmpty()
+
     Box(modifier = modifier) {
         // Album art background
-        if (state?.albumArt != null) {
+        if (state?.albumArt != null && hasContent) {
             Image(
                 bitmap             = state.albumArt.asImageBitmap(),
                 contentDescription = null,
@@ -64,31 +75,43 @@ fun NowPlayingWidget(
                     )
             )
         } else {
-            Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B0B0B)))
+            Box(modifier = Modifier.fillMaxSize().background(if (isDayMode) Color(0xFFFFFFFF) else Color(0xFF0B0B0B)))
         }
 
-        if (state == null) {
-            val isConnected by MediaListenerService.isConnected.collectAsState()
+        if (!hasContent) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                val hasCarPlay  = carPlayPackage.isNotEmpty()
-                val hasAutoApp  = androidAutoPackage.isNotEmpty()
-
+                val idleIconColor = if (isDayMode) Color(0xFF888888) else Color(0xFF444444)
+                val idleTextColor = if (isDayMode) Color(0xFF888888) else Color(0xFF444444)
                 if (!isConnected && !hasCarPlay && !hasAutoApp) {
-                    // No access, no shortcuts — quiet placeholder
-                    Icon(Icons.Default.MusicNote, null, tint = Color(0xFF1E1E1E), modifier = Modifier.size(24.dp))
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .let { if (!isEditing) it.clickable {
+                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            } else it }
+                            .padding(12.dp)
+                    ) {
+                        Icon(Icons.Default.MusicNote, null, tint = idleIconColor, modifier = Modifier.size(22.dp))
+                        Text(
+                            "ENABLE MEDIA ACCESS",
+                            color         = idleTextColor,
+                            fontSize      = 7.sp,
+                            letterSpacing = 1.sp,
+                            textAlign     = TextAlign.Center
+                        )
+                    }
                 } else if (hasCarPlay || hasAutoApp) {
-                    // Show pinned shortcut buttons filling the entire box
                     Row(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier              = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         if (hasCarPlay) {
                             Box(
                                 contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable { onLaunchCarPlay() }
+                                modifier         = Modifier.weight(1f).fillMaxHeight()
+                                    .let { if (!isEditing) it.clickable { onLaunchCarPlay() } else it }
                             ) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -108,10 +131,8 @@ fun NowPlayingWidget(
                         if (hasAutoApp) {
                             Box(
                                 contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable { onLaunchAndroidAuto() }
+                                modifier         = Modifier.weight(1f).fillMaxHeight()
+                                    .let { if (!isEditing) it.clickable { onLaunchAndroidAuto() } else it }
                             ) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -124,10 +145,9 @@ fun NowPlayingWidget(
                         }
                     }
                 } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.MusicNote, null, tint = Color(0xFF2A2A2A), modifier = Modifier.size(28.dp))
-                        Spacer(Modifier.height(4.dp))
-                        Text("No media playing", style = MaterialTheme.typography.labelSmall, color = Color(0xFF333333))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.MusicNote, null, tint = idleIconColor, modifier = Modifier.size(24.dp))
+                        Text("NO MEDIA PLAYING", color = idleTextColor, fontSize = 7.sp, letterSpacing = 1.sp)
                     }
                 }
             }
@@ -153,7 +173,7 @@ fun NowPlayingWidget(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier
                         .padding(top = 18.dp)
-                        .clickable { onTapToOpenApp() }
+                        .let { if (!isEditing) it.clickable { onTapToOpenApp() } else it }
                 ) {
                     Text(
                         text     = state.title,
@@ -196,7 +216,7 @@ fun NowPlayingWidget(
                         verticalAlignment     = Alignment.CenterVertically,
                         modifier              = Modifier.fillMaxWidth()
                     ) {
-                        IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = { if (!isEditing) onPrev() }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.SkipPrevious, "Prev", tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
                         }
                         Box(
@@ -206,7 +226,7 @@ fun NowPlayingWidget(
                                 .clip(CircleShape)
                                 .background(accent.copy(alpha = 0.9f))
                         ) {
-                            IconButton(onClick = onPlayPause, modifier = Modifier.size(42.dp)) {
+                            IconButton(onClick = { if (!isEditing) onPlayPause() }, modifier = Modifier.size(42.dp)) {
                                 Icon(
                                     imageVector        = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = if (state.isPlaying) "Pause" else "Play",
@@ -215,7 +235,7 @@ fun NowPlayingWidget(
                                 )
                             }
                         }
-                        IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = { if (!isEditing) onNext() }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.SkipNext, "Next", tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
                         }
                     }

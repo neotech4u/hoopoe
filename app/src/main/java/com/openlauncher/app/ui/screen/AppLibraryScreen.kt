@@ -3,9 +3,11 @@ package com.openlauncher.app.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -13,19 +15,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.platform.LocalTextInputService
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.openlauncher.app.model.AppInfo
+import com.openlauncher.app.ui.theme.LocalDayMode
 
-private val TILE_RADIUS  = RoundedCornerShape(4.dp)
-private val TILE_BG      = Color(0xFF0B0B0B)
-private val TILE_BORDER  = Color(0xFF1A1A1A)
+private enum class AppFilter { USER, SYSTEM, ALL }
+
+private val TILE_RADIUS = RoundedCornerShape(4.dp)
 
 @Composable
 fun AppLibraryScreen(
@@ -41,15 +48,32 @@ fun AppLibraryScreen(
     onCarPlaySelect: (AppInfo) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val anyPickerMode = isPickerMode || isCarPlayPickerMode
-    var query by remember { mutableStateOf("") }
+    val isDayMode     = LocalDayMode.current
+    val screenBg      = if (isDayMode) Color(0xFFEEEEEE) else Color.Black
+    val headerColor   = if (isDayMode) Color(0xFF111111) else Color.White
+    val placeholderC  = if (isDayMode) Color(0xFF999999) else Color(0xFF444444)
+    val dividerColor  = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1A1A1A)
+    val emptyColor    = if (isDayMode) Color(0xFF888888) else Color(0xFF3A3A3A)
+    val fieldTextC    = if (isDayMode) Color(0xFF111111) else Color.White
+    val fieldBorderU  = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1E1E1E)
 
-    val filtered = remember(apps, query) {
-        if (query.isBlank()) apps
-        else apps.filter { it.appName.contains(query, ignoreCase = true) }
+    val anyPickerMode = isPickerMode || isCarPlayPickerMode
+    var query     by remember { mutableStateOf("") }
+    var appFilter by remember { mutableStateOf(AppFilter.USER) }
+
+    val filtered = remember(apps, query, appFilter, anyPickerMode) {
+        val byName = if (query.isBlank()) apps
+                     else apps.filter { it.appName.contains(query, ignoreCase = true) }
+        // In picker mode always show everything so shortcuts can be set to any app
+        if (anyPickerMode) byName
+        else when (appFilter) {
+            AppFilter.USER   -> byName.filter { !it.isSystemApp }
+            AppFilter.SYSTEM -> byName.filter { it.isSystemApp }
+            AppFilter.ALL    -> byName
+        }
     }
 
-    Column(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    Column(modifier = modifier.fillMaxSize().background(screenBg)) {
         // ── Header ─────────────────────────────────────────────────────────────
         Row(
             modifier = Modifier
@@ -65,30 +89,70 @@ fun AppLibraryScreen(
                     else                -> "APPS"
                 },
                 style         = MaterialTheme.typography.titleLarge,
-                color         = if (anyPickerMode) accent else Color.White,
+                color         = if (anyPickerMode) accent else headerColor,
                 letterSpacing = 3.sp,
                 fontSize      = 14.sp
             )
+            if (!anyPickerMode) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AppFilter.entries.forEach { filter ->
+                        FilterChip(
+                            selected = appFilter == filter,
+                            onClick  = { appFilter = filter },
+                            label    = {
+                                Text(
+                                    when (filter) {
+                                        AppFilter.USER   -> "Installed"
+                                        AppFilter.SYSTEM -> "System"
+                                        AppFilter.ALL    -> "All"
+                                    },
+                                    fontSize = 9.sp,
+                                    letterSpacing = 0.5.sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = accent,
+                                selectedLabelColor     = Color.Black,
+                                labelColor             = placeholderC
+                            )
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.weight(1f))
-            OutlinedTextField(
-                value         = query,
-                onValueChange = { query = it },
-                placeholder   = { Text("Search…", color = Color(0xFF444444), fontSize = 13.sp) },
-                leadingIcon   = { Icon(Icons.Default.Search, null, tint = Color(0xFF444444), modifier = Modifier.size(16.dp)) },
-                singleLine    = true,
-                shape         = RoundedCornerShape(4.dp),
-                colors        = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = accent,
-                    unfocusedBorderColor = Color(0xFF1E1E1E),
-                    focusedTextColor     = Color.White,
-                    unfocusedTextColor   = Color.White,
-                    cursorColor          = accent
-                ),
-                modifier = Modifier.width(200.dp).height(44.dp)
-            )
+            var searchFocused by remember { mutableStateOf(false) }
+            Box(
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier
+                    .width(200.dp)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .border(1.dp, if (searchFocused) accent else fieldBorderU, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.Search, null, tint = placeholderC, modifier = Modifier.size(14.dp))
+                    BasicTextField(
+                        value         = query,
+                        onValueChange = { query = it },
+                        singleLine    = true,
+                        textStyle     = TextStyle(color = fieldTextC, fontSize = 13.sp),
+                        cursorBrush   = SolidColor(accent),
+                        modifier      = Modifier
+                            .weight(1f)
+                            .onFocusChanged { searchFocused = it.isFocused },
+                        decorationBox = { inner ->
+                            Box {
+                                if (query.isEmpty()) Text("Search…", color = placeholderC, fontSize = 13.sp)
+                                inner()
+                            }
+                        }
+                    )
+                }
+            }
         }
 
-        HorizontalDivider(color = Color(0xFF1A1A1A))
+        HorizontalDivider(color = dividerColor)
 
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -99,7 +163,7 @@ fun AppLibraryScreen(
 
         if (filtered.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No apps found", color = Color(0xFF3A3A3A), letterSpacing = 1.sp, fontSize = 12.sp)
+                Text("No apps found", color = emptyColor, letterSpacing = 1.sp, fontSize = 12.sp)
             }
             return@Column
         }
@@ -135,14 +199,17 @@ private fun AppTile(
     accent: Color,
     onClick: () -> Unit
 ) {
+    val isDayMode  = LocalDayMode.current
+    val tileBg     = if (isDayMode) Color(0xFFFFFFFF) else Color(0xFF0B0B0B)
+    val tileBorder = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1A1A1A)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
             .aspectRatio(1f)
             .clip(TILE_RADIUS)
-            .background(TILE_BG)
-            .border(1.dp, TILE_BORDER, TILE_RADIUS)
+            .background(tileBg)
+            .border(1.dp, tileBorder, TILE_RADIUS)
             .clickable(onClick = onClick)
             .padding(7.dp)
     ) {
@@ -164,7 +231,7 @@ private fun AppTile(
         Text(
             text          = app.appName.uppercase(),
             style         = MaterialTheme.typography.labelSmall,
-            color         = Color(0xFF888888),
+            color         = if (isDayMode) Color(0xFF666666) else Color(0xFF888888),
             maxLines      = 1,
             overflow      = TextOverflow.Ellipsis,
             textAlign     = TextAlign.Center,

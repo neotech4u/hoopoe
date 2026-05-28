@@ -16,8 +16,12 @@ fun WeatherWidget(
     state: WeatherState?,
     accent: Color,
     metric: Boolean,
+    isDayMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val contentColor = if (isDayMode) Color(0xFF111111) else Color.White
+    val subColor     = if (isDayMode) Color(0xFF888888) else Color(0xFF777777)
+
     Box(modifier = modifier) {
         if (state != null) {
             Column(
@@ -32,14 +36,14 @@ fun WeatherWidget(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text       = state.temperatureDisplay(metric),
-                    color      = Color.White,
+                    color      = contentColor,
                     fontSize   = 32.sp,
                     fontWeight = FontWeight.Light,
                     letterSpacing = 1.sp
                 )
                 Text(
                     text          = state.conditionLabel.uppercase(),
-                    color         = Color(0xFF777777),
+                    color         = subColor,
                     fontSize      = 9.sp,
                     letterSpacing = 1.sp
                 )

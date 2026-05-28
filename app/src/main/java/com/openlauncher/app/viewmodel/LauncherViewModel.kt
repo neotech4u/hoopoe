@@ -8,13 +8,17 @@ import android.net.NetworkCapabilities
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.openlauncher.app.data.AppSettings
+import com.openlauncher.app.data.DayNightMode
 import com.openlauncher.app.data.DefaultShortcutIcon
 import com.openlauncher.app.data.GRID_COLS
 import com.openlauncher.app.data.GRID_ROWS
 import com.openlauncher.app.data.SettingsRepository
 import com.openlauncher.app.data.ShortcutConfig
 import com.openlauncher.app.data.WeatherApi
+import com.openlauncher.app.data.activeWidgetIds
+import com.openlauncher.app.data.computeWidgetMove
 import com.openlauncher.app.data.defaultShortcuts
+import com.openlauncher.app.util.SunriseSunset
 import com.openlauncher.app.model.AppInfo
 import com.openlauncher.app.model.NavDestination
 import com.openlauncher.app.model.NowPlayingState
@@ -137,6 +141,83 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun moveWidgetConfig(id: String, gridX: Int, gridY: Int) {
+        updateSettings {
+            val activeIds = activeWidgetIds()
+            val active   = widgetLayout.filter { it.enabled && it.id in activeIds }
+            val inactive = widgetLayout.filter { !it.enabled || it.id !in activeIds }
+            copy(widgetLayout = computeWidgetMove(active, id, gridX, gridY) + inactive)
+        }
+    }
+
+    fun addWidget(id: String) {
+        updateSettings {
+            val activeIds = activeWidgetIds()
+            var layout    = widgetLayout
+            var cell      = freeCellIn(layout, activeIds)
+
+            // If grid is full, shrink the largest multi-cell widget by one span to make room
+            if (cell == null) {
+                val candidate = layout
+                    .filter { it.enabled && it.id in activeIds && it.spanX * it.spanY > 1 }
+                    .maxByOrNull { it.spanX * it.spanY }
+                if (candidate != null) {
+                    layout = layout.map { w ->
+                        if (w.id == candidate.id)
+                            if (w.spanY > 1) w.copy(spanY = w.spanY - 1) else w.copy(spanX = w.spanX - 1)
+                        else w
+                    }
+                    cell = freeCellIn(layout, activeIds)
+                }
+            }
+
+            val cell_ = cell ?: return@updateSettings this
+
+            val withShow = when (id) {
+                "CLOCK"       -> copy(showClock = true)
+                "WEATHER"     -> copy(showWeather = true)
+                "NOW_PLAYING" -> copy(showNowPlaying = true)
+                "TELEMETRY"   -> copy(showTelemetry = true)
+                "ALTIMETER"   -> copy(showAltimeter = true)
+                "SPEEDOMETER" -> copy(showSpeedometer = true)
+                else          -> this
+            }
+            val idx       = layout.indexOfFirst { it.id == id }
+            val newLayout = if (idx >= 0) layout.toMutableList().also {
+                it[idx] = it[idx].copy(enabled = true, gridX = cell_.first, gridY = cell_.second)
+            } else layout + com.openlauncher.app.data.WidgetConfig(id, cell_.first, cell_.second)
+            withShow.copy(widgetLayout = newLayout)
+        }
+    }
+
+    fun removeWidget(id: String) {
+        updateSettings {
+            when (id) {
+                "CLOCK"       -> copy(showClock = false)
+                "WEATHER"     -> copy(showWeather = false)
+                "NOW_PLAYING" -> copy(showNowPlaying = false)
+                "TELEMETRY"   -> copy(showTelemetry = false)
+                "ALTIMETER"   -> copy(showAltimeter = false)
+                "SPEEDOMETER" -> copy(showSpeedometer = false)
+                else          -> this
+            }
+        }
+    }
+
+    private fun freeCellIn(
+        layout: List<com.openlauncher.app.data.WidgetConfig>,
+        activeIds: Set<String>
+    ): Pair<Int, Int>? {
+        val occupied = buildSet<Pair<Int, Int>> {
+            layout.filter { it.enabled && it.id in activeIds }.forEach { w ->
+                for (dx in 0 until w.spanX) for (dy in 0 until w.spanY) add(w.gridX + dx to w.gridY + dy)
+            }
+        }
+        for (row in 0 until GRID_ROWS) for (col in 0 until GRID_COLS)
+            if ((col to row) !in occupied) return col to row
+        return null
+    }
+
     fun cancelCarPlayPicker() {
         _appPickerTarget.value = null
     }
@@ -171,7 +252,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         AppInfo(
                             packageName = appInfo.packageName,
                             appName     = label,
-                            icon        = pm.getApplicationIcon(appInfo)
+                            icon        = pm.getApplicationIcon(appInfo),
+                            isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
                         )
                     } catch (_: Exception) { null }
                 }
@@ -249,6 +331,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     val compassBearing: StateFlow<Float> = locationMgr.bearing
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0f)
+
+    val isDayMode: StateFlow<Boolean> = combine(settings, locationMgr.location) { s, loc ->
+        when (s.dayNightMode) {
+            DayNightMode.DARK   -> false
+            DayNightMode.LIGHT  -> true
+            DayNightMode.AUTO   -> if (loc != null) SunriseSunset.isDay(loc.latitude, loc.longitude) else false
+            DayNightMode.SYSTEM -> false // placeholder — overridden in MainActivity via isSystemInDarkTheme()
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     fun startLocationUpdates() = locationMgr.start()
     fun stopLocationUpdates()  = locationMgr.stop()

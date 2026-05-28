@@ -22,6 +22,7 @@ import kotlin.math.sin
 fun ClockWidget(
     style: ClockStyle,
     accent: Color,
+    isDayMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var calendar by remember { mutableStateOf(Calendar.getInstance()) }
@@ -33,16 +34,19 @@ fun ClockWidget(
         }
     }
 
+    val contentColor = if (isDayMode) Color(0xFF111111) else Color.White
+    val subColor     = if (isDayMode) Color(0xFF888888) else Color(0xFF777777)
+
     Box(modifier = modifier) {
         when (style) {
-            ClockStyle.DIGITAL -> DigitalClock(calendar)
-            ClockStyle.ANALOG  -> AnalogClock(calendar, accent)
+            ClockStyle.DIGITAL -> DigitalClock(calendar, contentColor, subColor)
+            ClockStyle.ANALOG  -> AnalogClock(calendar, accent, isDayMode)
         }
     }
 }
 
 @Composable
-private fun DigitalClock(cal: Calendar) {
+private fun DigitalClock(cal: Calendar, contentColor: Color, subColor: Color) {
     val hour   = cal.get(Calendar.HOUR_OF_DAY)
     val minute = cal.get(Calendar.MINUTE)
 
@@ -53,21 +57,21 @@ private fun DigitalClock(cal: Calendar) {
     ) {
         Text(
             text          = "%02d:%02d".format(hour, minute),
-            color         = Color.White,
+            color         = contentColor,
             fontSize      = 48.sp,
             fontWeight    = androidx.compose.ui.text.font.FontWeight.Light,
             letterSpacing = 1.sp
         )
         Text(
             text     = buildDateString(cal),
-            color    = Color(0xFF777777),
+            color    = subColor,
             fontSize = 12.sp
         )
     }
 }
 
 @Composable
-private fun AnalogClock(cal: Calendar, accent: Color) {
+private fun AnalogClock(cal: Calendar, accent: Color, isDayMode: Boolean = false) {
     val hour   = cal.get(Calendar.HOUR).toFloat()
     val minute = cal.get(Calendar.MINUTE).toFloat()
     val second = cal.get(Calendar.SECOND).toFloat()
@@ -78,9 +82,13 @@ private fun AnalogClock(cal: Calendar, accent: Color) {
             val cy     = size.height / 2f
             val radius = size.minDimension / 2f * 0.82f
 
+            val ringColor = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF2A2A2A)
+            val minuteHandColor = if (isDayMode) Color(0xFF222222) else Color.White
+            val pivotBg = if (isDayMode) Color(0xFFEEEEEE) else Color(0xFF1E1E1E)
+
             // Outer hairline ring
             drawCircle(
-                color  = Color(0xFF2A2A2A),
+                color  = ringColor,
                 radius = radius,
                 center = Offset(cx, cy),
                 style  = Stroke(1.dp.toPx())
@@ -99,8 +107,8 @@ private fun AnalogClock(cal: Calendar, accent: Color) {
                 drawLine(
                     color       = when {
                         isQuarter -> accent.copy(alpha = 0.9f)
-                        isHour    -> Color(0xFF555555)
-                        else      -> Color(0xFF2E2E2E)
+                        isHour    -> if (isDayMode) Color(0xFF888888) else Color(0xFF555555)
+                        else      -> if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF2E2E2E)
                     },
                     start       = Offset(cx + cos(angle) * radius * inner, cy + sin(angle) * radius * inner),
                     end         = Offset(cx + cos(angle) * radius * 0.96f, cy + sin(angle) * radius * 0.96f),
@@ -119,10 +127,10 @@ private fun AnalogClock(cal: Calendar, accent: Color) {
                 cap         = StrokeCap.Round
             )
 
-            // Minute hand — white, longer
+            // Minute hand
             val mAngle = ((minute / 60f) * 2 * Math.PI - Math.PI / 2).toFloat()
             drawLine(
-                color       = Color.White,
+                color       = minuteHandColor,
                 start       = Offset(cx - cos(mAngle) * radius * 0.14f, cy - sin(mAngle) * radius * 0.14f),
                 end         = Offset(cx + cos(mAngle) * radius * 0.74f, cy + sin(mAngle) * radius * 0.74f),
                 strokeWidth = 1.5.dp.toPx(),
@@ -140,7 +148,7 @@ private fun AnalogClock(cal: Calendar, accent: Color) {
             )
 
             // Center pivot
-            drawCircle(color = Color(0xFF1E1E1E), radius = 4.dp.toPx(), center = Offset(cx, cy))
+            drawCircle(color = pivotBg, radius = 4.dp.toPx(), center = Offset(cx, cy))
             drawCircle(
                 color  = accent,
                 radius = 2.5.dp.toPx(),
@@ -152,7 +160,7 @@ private fun AnalogClock(cal: Calendar, accent: Color) {
         // Date inset — centered, above 6 o'clock position like a real watch
         Text(
             text      = shortDateString(cal),
-            color     = Color(0xFF555555),
+            color     = if (isDayMode) Color(0xFF999999) else Color(0xFF555555),
             fontSize  = 9.sp,
             letterSpacing = 1.5.sp,
             modifier  = Modifier

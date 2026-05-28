@@ -11,12 +11,16 @@ import android.location.LocationManager
 import android.os.Bundle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 data class LocationData(
     val latitude: Double,
     val longitude: Double,
     val altitude: Double,
-    val accuracy: Float
+    val accuracy: Float,
+    val speedMps: Float = 0f
 )
 
 class LocationCompassManager(context: Context) {
@@ -29,8 +33,11 @@ class LocationCompassManager(context: Context) {
     val location: StateFlow<LocationData?> = _location
     val bearing: StateFlow<Float> = _bearing
 
-    private val gravity    = FloatArray(3)
-    private val geomagnetic = FloatArray(3)
+    private val gravity      = FloatArray(3)
+    private val geomagnetic  = FloatArray(3)
+    // Circular low-pass filter for smooth bearing (avoids 0°/360° wrap artifacts)
+    private var bearingSin   = 0f
+    private var bearingCos   = 1f   // initial: pointing north
 
     private val sensorListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
@@ -47,8 +54,12 @@ class LocationCompassManager(context: Context) {
             if (SensorManager.getRotationMatrix(r, i, gravity, geomagnetic)) {
                 val orientation = FloatArray(3)
                 SensorManager.getOrientation(r, orientation)
-                val azimuthDeg = Math.toDegrees(orientation[0].toDouble()).toFloat()
-                _bearing.value = (azimuthDeg + 360f) % 360f
+                val azimuthRad = orientation[0].toDouble()
+                // Circular low-pass filter — correctly handles 0°/360° wrap-around
+                val alpha = 0.10f
+                bearingSin = alpha * sin(azimuthRad).toFloat() + (1f - alpha) * bearingSin
+                bearingCos = alpha * cos(azimuthRad).toFloat() + (1f - alpha) * bearingCos
+                _bearing.value = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
             }
         }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -60,7 +71,8 @@ class LocationCompassManager(context: Context) {
                 latitude  = loc.latitude,
                 longitude = loc.longitude,
                 altitude  = loc.altitude,
-                accuracy  = loc.accuracy
+                accuracy  = loc.accuracy,
+                speedMps  = if (loc.hasSpeed()) loc.speed else 0f
             )
         }
         @Deprecated("Deprecated in Java")

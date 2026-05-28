@@ -23,8 +23,15 @@ fun TelemetryWidget(
     location: LocationData?,
     bearing: Float,
     accent: Color,
+    isDayMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val contentColor = if (isDayMode) Color(0xFF111111) else Color.White
+    val subColor     = if (isDayMode) Color(0xFF888888) else Color(0xFF444444)
+    val ringColor    = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF2E2E2E)
+    val cardinalMain = if (isDayMode) Color(0xFF555555) else Color(0xFFAAAAAA)
+    val cardinalSub  = if (isDayMode) Color(0xFF888888) else Color(0xFF666666)
+    val arrowColor   = if (isDayMode) Color(0xFF222222) else Color.White
     Column(
         modifier = modifier.padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.SpaceBetween
@@ -56,7 +63,7 @@ fun TelemetryWidget(
                     val r  = radius.toPx()
 
                     drawCircle(
-                        color  = Color(0xFF2E2E2E),
+                        color  = ringColor,
                         radius = r,
                         center = Offset(cx, cy),
                         style  = Stroke(width = 1.5.dp.toPx())
@@ -72,7 +79,7 @@ fun TelemetryWidget(
                 ) {
                     Text(
                         text     = "N",
-                        color    = Color(0xFFAAAAAA),
+                        color    = cardinalMain,
                         fontSize = 11.sp,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
@@ -80,7 +87,7 @@ fun TelemetryWidget(
                     )
                     Text(
                         text     = "S",
-                        color    = Color(0xFFAAAAAA),
+                        color    = cardinalMain,
                         fontSize = 11.sp,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
@@ -88,7 +95,7 @@ fun TelemetryWidget(
                     )
                     Text(
                         text     = "E",
-                        color    = Color(0xFF666666),
+                        color    = cardinalSub,
                         fontSize = 9.sp,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
@@ -96,7 +103,7 @@ fun TelemetryWidget(
                     )
                     Text(
                         text     = "W",
-                        color    = Color(0xFF666666),
+                        color    = cardinalSub,
                         fontSize = 9.sp,
                         modifier = Modifier
                             .align(Alignment.CenterStart)
@@ -122,7 +129,7 @@ fun TelemetryWidget(
                         lineTo(cx - arrowW, cy + arrowH * 0.42f) // bottom-left
                         close()
                     },
-                    color = Color.White
+                    color = arrowColor
                 )
 
                 // Hollow pivot circle
@@ -147,13 +154,13 @@ fun TelemetryWidget(
                 Text(
                     text          = "LATITUDE",
                     style         = MaterialTheme.typography.labelSmall,
-                    color         = Color(0xFF444444),
+                    color         = subColor,
                     letterSpacing = 1.sp,
                     fontSize      = 7.sp
                 )
                 Text(
                     text     = if (location != null) formatLat(location.latitude) else "—",
-                    color    = Color.White,
+                    color    = contentColor,
                     fontSize = 11.sp
                 )
             }
@@ -164,14 +171,14 @@ fun TelemetryWidget(
                 Text(
                     text          = "LONGITUDE",
                     style         = MaterialTheme.typography.labelSmall,
-                    color         = Color(0xFF444444),
+                    color         = subColor,
                     letterSpacing = 1.sp,
                     fontSize      = 7.sp,
                     textAlign     = TextAlign.End
                 )
                 Text(
                     text      = if (location != null) formatLon(location.longitude) else "—",
-                    color     = Color.White,
+                    color     = contentColor,
                     fontSize  = 11.sp,
                     textAlign = TextAlign.End
                 )

@@ -64,6 +64,7 @@ Future targets include:
 - [ ] **Picture-in-Picture (PiP):** Support for floating maps or media over the launcher.
 - [ ] **Offline Weather via FM/RDS:** A highly experimental goal to pull local weather data directly from FM radio bands (RDS/TMC) utilizing the car's physical antenna—bypassing the need for Wi-Fi entirely.
 - [ ] **Universal Theming Engine:** A standardized platform allowing the community to build, share, and install entirely new visual themes.
+- [ ] **Widget Library:** Choose and connect custom vehicle specific data to your own widgets. Choose from a expansive library of what you'd like on your own headunit. (Altimeter, Radio)
 
 ---
 
@@ -75,3 +76,15 @@ This project is open-source because it takes a community to build something that
 1. **Test on your hardware:** Install the APK on your specific head unit, break things, and submit Bug Reports in the [Issues tab](../../issues). 
 2. **Feature Requests:** Have a cool idea? Open a discussion.
 3. **Pull Requests:** See a bug you can fix or a feature you want to add? Fork the repo and submit a PR. *(Please check the issues tab first to see what is currently being worked on!)*
+
+-- 
+
+## Donate
+
+This app is fully free and open-source, a donation isn't required but would be greatly appreciated to help support the constant updates/fixes I plan in the coming future based on all your suggestions!
+
+[
+  ![Donate with PayPal]
+  (https://raw.githubusercontent.com/stefan-niedermann/paypal-donate-button/master/paypal-donate-button.png)
+]
+(https://paypal.me/dw2lam)

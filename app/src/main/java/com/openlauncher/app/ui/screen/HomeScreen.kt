@@ -1,13 +1,18 @@
 package com.openlauncher.app.ui.screen
 
+import android.content.res.Configuration
 import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,22 +21,71 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import com.openlauncher.app.data.AppSettings
+import com.openlauncher.app.data.ClockStyle
+import com.openlauncher.app.data.computeWidgetMove
 import com.openlauncher.app.data.GRID_COLS
 import com.openlauncher.app.data.GRID_ROWS
 import com.openlauncher.app.data.WidgetConfig
 import com.openlauncher.app.model.NowPlayingState
 import com.openlauncher.app.model.WeatherState
+import com.openlauncher.app.ui.theme.LocalDayMode
 import com.openlauncher.app.ui.widget.*
 import java.util.Calendar
 import com.openlauncher.app.util.LocationData
 
 private val WIDGET_RADIUS = RoundedCornerShape(0.dp)
+
+private data class WidgetTypeInfo(
+    val id: String,
+    val label: String,
+    val icon: ImageVector,
+    val description: String
+)
+
+private val ALL_WIDGET_TYPES = listOf(
+    WidgetTypeInfo("CLOCK",       "CLOCK",       Icons.Default.AccessTime,  "Time & date"),
+    WidgetTypeInfo("WEATHER",     "WEATHER",     Icons.Default.Cloud,       "Current conditions"),
+    WidgetTypeInfo("NOW_PLAYING", "NOW PLAYING", Icons.Default.MusicNote,   "Media controls"),
+    WidgetTypeInfo("TELEMETRY",   "COMPASS",     Icons.Default.Explore,     "Speed & heading"),
+    WidgetTypeInfo("ALTIMETER",   "ALTIMETER",   Icons.Default.FlightTakeoff, "Roll, pitch & altitude"),
+    WidgetTypeInfo("SPEEDOMETER", "SPEED",       Icons.Default.Speed,         "GPS speed"),
+)
+
+private fun canAddWidget(settings: com.openlauncher.app.data.AppSettings): Boolean {
+    val visibleIds = buildSet {
+        if (settings.showClock) add("CLOCK")
+        if (settings.showWeather) add("WEATHER")
+        if (settings.showNowPlaying) add("NOW_PLAYING")
+        if (settings.showTelemetry) add("TELEMETRY")
+        if (settings.showAltimeter) add("ALTIMETER")
+        if (settings.showSpeedometer) add("SPEEDOMETER")
+    }
+    val activeWidgets = settings.widgetLayout.filter { it.enabled && it.id in visibleIds }
+    val occupied = buildSet<Pair<Int, Int>> {
+        activeWidgets.forEach { w ->
+            for (dx in 0 until w.spanX) for (dy in 0 until w.spanY) add(w.gridX + dx to w.gridY + dy)
+        }
+    }
+    val hasFreeCell = (0 until com.openlauncher.app.data.GRID_ROWS).any { r ->
+        (0 until com.openlauncher.app.data.GRID_COLS).any { c -> (c to r) !in occupied }
+    }
+    // Also true if any active widget spans >1 cell and can be shrunk to make room
+    val hasShrinkable = activeWidgets.any { it.spanX * it.spanY > 1 }
+    return hasFreeCell || hasShrinkable
+}
 
 @Composable
 fun HomeScreen(
@@ -42,6 +96,7 @@ fun HomeScreen(
     bearing: Float,
     isWifi: Boolean,
     isData: Boolean,
+    isDayMode: Boolean = false,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
@@ -49,18 +104,39 @@ fun HomeScreen(
     onLaunchAndroidAuto: () -> Unit,
     onAssignCarPlay: () -> Unit,
     onAssignAndroidAuto: () -> Unit,
+    onClearCarPlay: () -> Unit,
+    onClearAndroidAuto: () -> Unit,
     onTapNowPlaying: () -> Unit,
     onUpdateWidget: (id: String, spanX: Int, spanY: Int) -> Unit,
+    onMoveWidget: (id: String, gridX: Int, gridY: Int) -> Unit,
+    onAddWidget: (id: String) -> Unit,
+    onRemoveWidget: (id: String) -> Unit,
+    onSetClockStyle: (ClockStyle) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accent      = Color(settings.accentColor)
-    val gap         = 6.dp
+    val accent       = Color(settings.accentColor)
+    val gap          = 6.dp
     val hasWallpaper = settings.wallpaperUri.isNotEmpty()
-    val widgetBg     = if (hasWallpaper) Color(0xCC000000) else Color(0xFF0B0B0B)
-    val widgetBorder = if (hasWallpaper) Color(0x22FFFFFF)  else Color(0xFF1A1A1A)
+    val widgetBg     = when {
+        isDayMode    -> Color(0xFFFFFFFF)
+        hasWallpaper -> Color(0xCC000000)
+        else         -> Color(0xFF0B0B0B)
+    }
+    val widgetBorder = when {
+        isDayMode    -> Color(0xFFCCCCCC)
+        hasWallpaper -> Color(0x22FFFFFF)
+        else         -> Color(0xFF1A1A1A)
+    }
+    val headerTextColor   = if (isDayMode) Color(0xFF111111) else accent
+    val statusIconColor   = if (isDayMode) Color(0xFF666666) else Color(0xFF666666)
 
     var resizingId    by remember { mutableStateOf<String?>(null) }
     var contextMenuId by remember { mutableStateOf<String?>(null) }
+
+    val configuration    = LocalConfiguration.current
+    val isLandscape      = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var editMode         by remember { mutableStateOf(false) }
+    var widgetLibraryOpen by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -75,7 +151,7 @@ fun HomeScreen(
             Text(
                 text          = settings.vehicleName.uppercase(),
                 style         = MaterialTheme.typography.titleLarge,
-                color         = accent,
+                color         = headerTextColor,
                 letterSpacing = 3.sp,
                 fontSize      = 14.sp
             )
@@ -87,9 +163,37 @@ fun HomeScreen(
             AnimatedVisibility(visible = isData, enter = fadeIn(), exit = fadeOut()) {
                 Icon(Icons.Default.SignalCellularAlt, "Data", tint = Color(0xFF666666), modifier = Modifier.size(16.dp))
             }
+            if (isLandscape) {
+                Spacer(Modifier.width(8.dp))
+                if (editMode) {
+                    IconButton(
+                        onClick  = { widgetLibraryOpen = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Default.Dashboard,
+                            contentDescription = "Widget library",
+                            tint               = Color(0xFF444444),
+                            modifier           = Modifier.size(15.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(2.dp))
+                }
+                IconButton(
+                    onClick  = { editMode = !editMode },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector        = Icons.Default.Edit,
+                        contentDescription = "Edit widgets",
+                        tint               = if (editMode) accent else Color(0xFF444444),
+                        modifier           = Modifier.size(15.dp)
+                    )
+                }
+            }
         }
 
-        HorizontalDivider(color = Color(0xFF141414))
+        HorizontalDivider(color = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF141414))
 
         // ── Widget Grid ─────────────────────────────────────────────────────
         BoxWithConstraints(
@@ -99,12 +203,17 @@ fun HomeScreen(
         ) {
             val cellW = (maxWidth  - gap * (GRID_COLS - 1)) / GRID_COLS
             val cellH = (maxHeight - gap * (GRID_ROWS - 1)) / GRID_ROWS
+            val density = LocalDensity.current
+            val cellStepXPx = with(density) { (cellW + gap).toPx() }
+            val cellStepYPx = with(density) { (cellH + gap).toPx() }
 
             val visibleIds = buildSet {
                 if (settings.showClock) add("CLOCK")
                 if (settings.showWeather && weather != null) add("WEATHER")
                 if (settings.showNowPlaying) add("NOW_PLAYING")
                 if (settings.showTelemetry) add("TELEMETRY")
+                if (settings.showAltimeter) add("ALTIMETER")
+                if (settings.showSpeedometer) add("SPEEDOMETER")
             }
 
             // Keep only visible widgets, then auto-expand each widget's spanX to fill
@@ -125,6 +234,60 @@ fun HomeScreen(
                 w.copy(spanX = spanX)
             }
 
+            // ── Drag state ───────────────────────────────────────────────────
+            var draggingId   by remember { mutableStateOf<String?>(null) }
+            var dragOffsetPx by remember { mutableStateOf(Offset.Zero) }
+
+            // Compute snap target for the widget being dragged (uses original spanX)
+            val draggingOriginal = if (draggingId != null) visible.find { it.id == draggingId } else null
+            val targetGridX = draggingOriginal?.let {
+                (it.gridX + (dragOffsetPx.x / cellStepXPx).roundToInt()).coerceIn(0, GRID_COLS - it.spanX)
+            }
+            val targetGridY = draggingOriginal?.let {
+                (it.gridY + (dragOffsetPx.y / cellStepYPx).roundToInt()).coerceIn(0, GRID_ROWS - it.spanY)
+            }
+
+            // Compute proposed layout (push preview) while dragging
+            val proposedLayout = if (draggingOriginal != null && targetGridX != null && targetGridY != null)
+                computeWidgetMove(visible, draggingOriginal.id, targetGridX, targetGridY)
+            else null
+
+            // Drop ghost — rendered before widgets so it appears beneath them
+            if (draggingOriginal != null && targetGridX != null && targetGridY != null) {
+                val gX = (cellW + gap) * targetGridX
+                val gY = (cellH + gap) * targetGridY
+                val gW = cellW * draggingOriginal.spanX + gap * (draggingOriginal.spanX - 1)
+                val gH = cellH * draggingOriginal.spanY + gap * (draggingOriginal.spanY - 1)
+                Box(
+                    modifier = Modifier
+                        .absoluteOffset(x = gX, y = gY)
+                        .size(gW, gH)
+                        .background(accent.copy(alpha = 0.08f))
+                        .border(1.dp, accent.copy(alpha = 0.5f), WIDGET_RADIUS)
+                )
+            }
+
+            // Displacement ghosts — show where pushed widgets will land
+            if (proposedLayout != null && draggingOriginal != null) {
+                proposedLayout
+                    .filter { it.id != draggingOriginal.id }
+                    .forEach { proposed ->
+                        val original = visible.find { it.id == proposed.id } ?: return@forEach
+                        if (proposed.gridX != original.gridX || proposed.gridY != original.gridY) {
+                            val dX = (cellW + gap) * proposed.gridX
+                            val dY = (cellH + gap) * proposed.gridY
+                            val dW = cellW * proposed.spanX + gap * (proposed.spanX - 1)
+                            val dH = cellH * proposed.spanY + gap * (proposed.spanY - 1)
+                            Box(
+                                modifier = Modifier
+                                    .absoluteOffset(x = dX, y = dY)
+                                    .size(dW, dH)
+                                    .border(1.dp, Color.White.copy(alpha = 0.25f), WIDGET_RADIUS)
+                            )
+                        }
+                    }
+            }
+
             rendered.forEach { w ->
                 val xOff   = (cellW + gap) * w.gridX
                 val yOff   = (cellH + gap) * w.gridY
@@ -136,35 +299,84 @@ fun HomeScreen(
                     "WEATHER"     -> "WEATHER"
                     "NOW_PLAYING" -> "NOW PLAYING"
                     "TELEMETRY"   -> "COMPASS"
+                    "ALTIMETER"   -> "ALTIMETER"
+                    "SPEEDOMETER" -> "SPEED"
                     else          -> w.id
                 }
+
+                // Original (pre-auto-expand) spanX needed for drag boundary clamping
+                val origSpanX  = visible.find { it.id == w.id }?.spanX ?: 1
+                val isDragging = draggingId == w.id
+                val dragDpX    = if (isDragging) with(density) { dragOffsetPx.x.toDp() } else 0.dp
+                val dragDpY    = if (isDragging) with(density) { dragOffsetPx.y.toDp() } else 0.dp
 
                 @OptIn(ExperimentalFoundationApi::class)
                 Box(
                     modifier = Modifier
-                        .absoluteOffset(x = xOff, y = yOff)
+                        .absoluteOffset(x = xOff + dragDpX, y = yOff + dragDpY)
                         .size(width, height)
+                        .zIndex(if (isDragging) 1f else 0f)
                         .clip(WIDGET_RADIUS)
                         .background(widgetBg)
-                        .border(1.dp, widgetBorder, WIDGET_RADIUS)
+                        .border(
+                            width = if (editMode) 1.5.dp else 1.dp,
+                            color = if (editMode) accent.copy(alpha = 0.45f) else widgetBorder,
+                            shape = WIDGET_RADIUS
+                        )
                         .combinedClickable(
-                            indication       = null,
+                            indication        = null,
                             interactionSource = remember { MutableInteractionSource() },
-                            onClick          = {},
-                            onLongClick      = { contextMenuId = w.id }
+                            onClick           = { if (editMode) contextMenuId = w.id },
+                            onLongClick       = { if (!editMode) contextMenuId = w.id }
+                        )
+                        .then(
+                            if (editMode) Modifier.pointerInput(editMode, w.id, w.gridX, w.gridY) {
+                                var hasSignificantDrag = false
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { _ ->
+                                        draggingId         = w.id
+                                        dragOffsetPx       = Offset.Zero
+                                        hasSignificantDrag = false
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetPx      += dragAmount
+                                        hasSignificantDrag = true
+                                    },
+                                    onDragEnd = {
+                                        if (hasSignificantDrag) {
+                                            val newX = (w.gridX + (dragOffsetPx.x / cellStepXPx).roundToInt())
+                                                .coerceIn(0, GRID_COLS - origSpanX)
+                                            val newY = (w.gridY + (dragOffsetPx.y / cellStepYPx).roundToInt())
+                                                .coerceIn(0, GRID_ROWS - w.spanY)
+                                            onMoveWidget(w.id, newX, newY)
+                                        } else {
+                                            contextMenuId = w.id
+                                        }
+                                        draggingId   = null
+                                        dragOffsetPx = Offset.Zero
+                                    },
+                                    onDragCancel = {
+                                        draggingId   = null
+                                        dragOffsetPx = Offset.Zero
+                                    }
+                                )
+                            } else Modifier
                         )
                 ) {
                     when (w.id) {
                         "CLOCK" -> ClockWidget(
-                            style    = settings.clockStyle,
-                            accent   = accent,
-                            modifier = Modifier.fillMaxSize()
+                            style      = settings.clockStyle,
+                            accent     = accent,
+                            isDayMode  = isDayMode,
+                            modifier   = Modifier.fillMaxSize()
                         )
                         "WEATHER" -> WeatherWidget(
-                            state    = weather,
-                            accent   = accent,
-                            metric   = settings.unitSystem.name == "METRIC",
-                            modifier = Modifier.fillMaxSize()
+                            state      = weather,
+                            accent     = accent,
+                            metric     = settings.unitSystem.name == "METRIC",
+                            isDayMode  = isDayMode,
+                            modifier   = Modifier.fillMaxSize()
                         )
                         "NOW_PLAYING" -> NowPlayingWidget(
                             state               = nowPlaying,
@@ -177,28 +389,47 @@ fun HomeScreen(
                             onLaunchCarPlay     = onLaunchCarPlay,
                             onLaunchAndroidAuto = onLaunchAndroidAuto,
                             onTapToOpenApp      = onTapNowPlaying,
-                            modifier            = Modifier.fillMaxSize()
+                            modifier            = Modifier.fillMaxSize(),
+                            isEditing           = editMode,
+                            isDayMode           = isDayMode
                         )
                         "TELEMETRY" -> TelemetryWidget(
-                            location = location,
-                            bearing  = bearing,
-                            accent   = accent,
-                            modifier = Modifier.fillMaxSize()
+                            location  = location,
+                            bearing   = bearing,
+                            accent    = accent,
+                            isDayMode = isDayMode,
+                            modifier  = Modifier.fillMaxSize()
+                        )
+                        "ALTIMETER" -> AltimeterWidget(
+                            accent    = accent,
+                            isDayMode = isDayMode,
+                            modifier  = Modifier.fillMaxSize()
+                        )
+                        "SPEEDOMETER" -> SpeedometerWidget(
+                            location  = location,
+                            isMetric  = settings.unitSystem == com.openlauncher.app.data.UnitSystem.METRIC,
+                            accent    = accent,
+                            isDayMode = isDayMode,
+                            modifier  = Modifier.fillMaxSize()
                         )
                     }
 
-                    // Label — bottom-left of header row
+                    // Label — hide when album art fills the widget background
+                    val labelColor = when {
+                        w.id == "NOW_PLAYING" && nowPlaying?.albumArt != null && nowPlaying.title.isNotEmpty() -> Color.Transparent
+                        isDayMode -> Color(0xFF999999)
+                        else      -> Color(0xFF3A3A3A)
+                    }
                     Text(
                         text          = label,
                         style         = MaterialTheme.typography.labelSmall,
-                        color         = Color(0xFF3A3A3A),
+                        color         = labelColor,
                         letterSpacing = 2.sp,
                         fontSize      = 8.sp,
                         modifier      = Modifier
                             .align(Alignment.TopStart)
                             .padding(start = 10.dp, top = 7.dp)
                     )
-
                 }
             }
         }
@@ -209,9 +440,15 @@ fun HomeScreen(
         WidgetContextMenu(
             widgetId            = id,
             accent              = accent,
+            clockStyle          = settings.clockStyle,
+            carPlayPackage      = settings.carPlayPackage,
+            androidAutoPackage  = settings.androidAutoPackage,
             onResize            = { contextMenuId = null; resizingId = id },
             onAssignCarPlay     = { contextMenuId = null; onAssignCarPlay() },
             onAssignAndroidAuto = { contextMenuId = null; onAssignAndroidAuto() },
+            onClearCarPlay      = { contextMenuId = null; onClearCarPlay() },
+            onClearAndroidAuto  = { contextMenuId = null; onClearAndroidAuto() },
+            onSetClockStyle     = { onSetClockStyle(it) },
             onDismiss           = { contextMenuId = null }
         )
     }
@@ -231,32 +468,78 @@ fun HomeScreen(
             )
         }
     }
+
+    // ── Widget library ────────────────────────────────────────────────────────
+    if (widgetLibraryOpen) {
+        WidgetLibraryDialog(
+            settings  = settings,
+            accent    = accent,
+            onAdd     = { id -> onAddWidget(id) },
+            onRemove  = { id -> onRemoveWidget(id) },
+            onDismiss = { widgetLibraryOpen = false }
+        )
+    }
 }
 
 @Composable
 private fun WidgetContextMenu(
     widgetId: String,
     accent: Color,
+    clockStyle: ClockStyle,
+    carPlayPackage: String = "",
+    androidAutoPackage: String = "",
     onResize: () -> Unit,
     onAssignCarPlay: () -> Unit,
     onAssignAndroidAuto: () -> Unit,
+    onClearCarPlay: () -> Unit,
+    onClearAndroidAuto: () -> Unit,
+    onSetClockStyle: (ClockStyle) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val isDayMode = LocalDayMode.current
+    val menuBg    = if (isDayMode) Color(0xFFF0F0F0) else Color(0xFF111111)
+    val menuBorder = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1E1E1E)
+    val menuDivider = if (isDayMode) Color(0xFFDDDDDD) else Color(0xFF1A1A1A)
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFF111111))
-                .border(1.dp, Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
+                .background(menuBg)
+                .border(1.dp, menuBorder, RoundedCornerShape(4.dp))
                 .padding(vertical = 4.dp)
                 .width(200.dp)
         ) {
+            val inactiveMenuTint = if (isDayMode) Color(0xFF777777) else Color(0xFF555555)
             ContextRow("RESIZE", Icons.Default.OpenWith, accent, onResize)
+            if (widgetId == "CLOCK") {
+                HorizontalDivider(color = menuDivider)
+                ContextRow(
+                    label   = "DIGITAL",
+                    icon    = Icons.Default.Schedule,
+                    tint    = if (clockStyle == ClockStyle.DIGITAL) accent else inactiveMenuTint,
+                    onClick = { onSetClockStyle(ClockStyle.DIGITAL) }
+                )
+                HorizontalDivider(color = menuDivider)
+                ContextRow(
+                    label   = "ANALOG",
+                    icon    = Icons.Default.Watch,
+                    tint    = if (clockStyle == ClockStyle.ANALOG) accent else inactiveMenuTint,
+                    onClick = { onSetClockStyle(ClockStyle.ANALOG) }
+                )
+            }
             if (widgetId == "NOW_PLAYING") {
-                HorizontalDivider(color = Color(0xFF1A1A1A))
+                HorizontalDivider(color = menuDivider)
                 ContextRow("ASSIGN CARPLAY APP",      Icons.Default.PhoneAndroid,  accent, onAssignCarPlay)
-                HorizontalDivider(color = Color(0xFF1A1A1A))
+                if (carPlayPackage.isNotEmpty()) {
+                    HorizontalDivider(color = menuDivider)
+                    ContextRow("CLEAR CARPLAY APP", Icons.Default.PhoneAndroid, Color(0xFF884444), onClearCarPlay)
+                }
+                HorizontalDivider(color = menuDivider)
                 ContextRow("ASSIGN ANDROID AUTO APP", Icons.Default.DirectionsCar, accent, onAssignAndroidAuto)
+                if (androidAutoPackage.isNotEmpty()) {
+                    HorizontalDivider(color = menuDivider)
+                    ContextRow("CLEAR ANDROID AUTO APP", Icons.Default.DirectionsCar, Color(0xFF884444), onClearAndroidAuto)
+                }
             }
         }
     }
@@ -290,12 +573,16 @@ private fun WidgetResizeDialog(
     val maxSpanX = GRID_COLS - config.gridX
     val maxSpanY = GRID_ROWS - config.gridY
 
+    val isDayMode    = LocalDayMode.current
+    val dialogBg     = if (isDayMode) Color(0xFFF0F0F0) else Color(0xFF0E0E0E)
+    val dialogText   = if (isDayMode) Color(0xFF111111) else Color.White
+    val cancelColor  = if (isDayMode) Color(0xFF888888) else Color(0xFF555555)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 text          = config.id.replace('_', ' '),
-                color         = Color.White,
+                color         = dialogText,
                 fontSize      = 11.sp,
                 letterSpacing = 2.sp
             )
@@ -313,12 +600,12 @@ private fun WidgetResizeDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCEL", color = Color(0xFF555555), fontSize = 11.sp, letterSpacing = 1.sp)
+                Text("CANCEL", color = cancelColor, fontSize = 11.sp, letterSpacing = 1.sp)
             }
         },
-        containerColor    = Color(0xFF0E0E0E),
-        titleContentColor = Color.White,
-        textContentColor  = Color.White
+        containerColor    = dialogBg,
+        titleContentColor = dialogText,
+        textContentColor  = dialogText
     )
 }
 
@@ -331,13 +618,18 @@ private fun SpanRow(
     accent: Color,
     onChange: (Int) -> Unit
 ) {
+    val isDayMode   = LocalDayMode.current
+    val textColor   = if (isDayMode) Color(0xFF111111) else Color.White
+    val dimColor    = if (isDayMode) Color(0xFF888888) else Color(0xFF666666)
+    val disabledC   = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF333333)
+    val inactiveBg  = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF2A2A2A)
     Row(
         verticalAlignment     = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text          = label,
-            color         = Color(0xFF666666),
+            color         = dimColor,
             fontSize      = 10.sp,
             letterSpacing = 1.sp,
             modifier      = Modifier.width(52.dp)
@@ -348,13 +640,13 @@ private fun SpanRow(
         ) {
             Icon(
                 Icons.Default.Remove, null,
-                tint     = if (value > min) Color.White else Color(0xFF333333),
+                tint     = if (value > min) textColor else disabledC,
                 modifier = Modifier.size(16.dp)
             )
         }
         Text(
             text      = "$value",
-            color     = Color.White,
+            color     = textColor,
             fontSize  = 16.sp,
             textAlign = TextAlign.Center,
             modifier  = Modifier.width(24.dp)
@@ -365,23 +657,157 @@ private fun SpanRow(
         ) {
             Icon(
                 Icons.Default.Add, null,
-                tint     = if (value < max) accent else Color(0xFF333333),
+                tint     = if (value < max) accent else disabledC,
                 modifier = Modifier.size(16.dp)
             )
         }
         Spacer(Modifier.weight(1f))
-        // Visual grid indicator
         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             repeat(max) { i ->
                 Box(
                     modifier = Modifier
                         .size(width = 14.dp, height = 10.dp)
                         .background(
-                            if (i < value) accent.copy(alpha = 0.7f) else Color(0xFF2A2A2A),
+                            if (i < value) accent.copy(alpha = 0.7f) else inactiveBg,
                             RoundedCornerShape(1.dp)
                         )
                 )
             }
         }
+    }
+}
+
+// ── Widget Library ────────────────────────────────────────────────────────────
+
+@Composable
+private fun WidgetLibraryDialog(
+    settings: AppSettings,
+    accent: Color,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isDayMode   = LocalDayMode.current
+    val dialogBg    = if (isDayMode) Color(0xFFF0F0F0) else Color(0xFF0C0C0C)
+    val dialogBorder = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1E1E1E)
+    val titleColor  = if (isDayMode) Color(0xFF888888) else Color(0xFF555555)
+    val closeColor  = if (isDayMode) Color(0xFF777777) else Color(0xFF444444)
+
+    val activeIds = buildSet {
+        if (settings.showClock) add("CLOCK")
+        if (settings.showWeather) add("WEATHER")
+        if (settings.showNowPlaying) add("NOW_PLAYING")
+        if (settings.showTelemetry) add("TELEMETRY")
+        if (settings.showAltimeter) add("ALTIMETER")
+        if (settings.showSpeedometer) add("SPEEDOMETER")
+    }
+    val canAdd = canAddWidget(settings)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(dialogBg)
+                .border(1.dp, dialogBorder, RoundedCornerShape(4.dp))
+                .padding(16.dp)
+                .widthIn(min = 320.dp, max = 520.dp)
+        ) {
+            Row(
+                modifier          = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text          = "WIDGET LIBRARY",
+                    color         = titleColor,
+                    fontSize      = 9.sp,
+                    letterSpacing = 2.sp
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Close, null, tint = closeColor, modifier = Modifier.size(14.dp))
+                }
+            }
+
+            LazyVerticalGrid(
+                columns               = GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement   = Arrangement.spacedBy(8.dp),
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                items(ALL_WIDGET_TYPES) { info ->
+                    val isActive = info.id in activeIds
+                    WidgetLibraryCard(
+                        info     = info,
+                        isActive = isActive,
+                        canAdd   = canAdd,
+                        accent   = accent,
+                        onToggle = { if (isActive) onRemove(info.id) else onAdd(info.id) }
+                    )
+                }
+            }
+
+            if (!canAdd) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text          = "ALL 6 CELLS OCCUPIED — REMOVE A WIDGET TO ADD MORE",
+                    color         = if (isDayMode) Color(0xFF888888) else Color(0xFF3A3A3A),
+                    fontSize      = 8.sp,
+                    letterSpacing = 1.sp,
+                    modifier      = Modifier.fillMaxWidth(),
+                    textAlign     = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WidgetLibraryCard(
+    info: WidgetTypeInfo,
+    isActive: Boolean,
+    canAdd: Boolean,
+    accent: Color,
+    onToggle: () -> Unit
+) {
+    val isDayMode  = LocalDayMode.current
+    val enabled    = isActive || canAdd
+    val cardBorder = if (isActive) accent.copy(alpha = 0.35f) else if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF1A1A1A)
+    val cardBg     = if (isActive) accent.copy(alpha = 0.07f) else if (isDayMode) Color(0xFFFFFFFF) else Color(0xFF0E0E0E)
+    val iconTint   = if (isActive) accent else if (isDayMode) Color(0xFF888888) else Color(0xFF333333)
+    val labelColor = if (isActive) accent else if (isDayMode) Color(0xFF888888) else Color(0xFF3A3A3A)
+
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(cardBg)
+            .border(1.dp, cardBorder, RoundedCornerShape(4.dp))
+            .clickable(enabled = enabled, onClick = onToggle)
+            .padding(vertical = 14.dp, horizontal = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Icon(info.icon, null, tint = iconTint, modifier = Modifier.size(20.dp))
+        Text(
+            text          = info.label,
+            color         = labelColor,
+            fontSize      = 8.sp,
+            letterSpacing = 1.5.sp,
+            textAlign     = TextAlign.Center
+        )
+        Text(
+            text          = when {
+                isActive -> "ACTIVE"
+                !canAdd  -> "FULL"
+                else     -> "ADD"
+            },
+            color         = when {
+                isActive -> accent.copy(alpha = 0.55f)
+                !canAdd  -> if (isDayMode) Color(0xFFBBBBBB) else Color(0xFF282828)
+                else     -> if (isDayMode) Color(0xFF999999) else Color(0xFF3A3A3A)
+            },
+            fontSize      = 7.sp,
+            letterSpacing = 1.sp,
+            textAlign     = TextAlign.Center
+        )
     }
 }
