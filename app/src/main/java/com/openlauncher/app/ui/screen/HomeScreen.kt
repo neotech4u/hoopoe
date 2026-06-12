@@ -45,6 +45,7 @@ import com.openlauncher.app.ui.theme.LocalDayMode
 import com.openlauncher.app.ui.widget.*
 import java.util.Calendar
 import com.openlauncher.app.util.LocationData
+import androidx.compose.foundation.gestures.detectTapGestures
 
 private val WIDGET_RADIUS = RoundedCornerShape(0.dp)
 
@@ -352,11 +353,18 @@ fun HomeScreen(
                             },
                             shape = WIDGET_RADIUS
                         )
-                        .combinedClickable(
-                            indication        = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                            onClick           = { if (editMode) contextMenuId = w.id },
-                            onLongClick       = { if (!editMode) contextMenuId = w.id }
+                        .then(
+                            if (editMode) {
+                                Modifier.clickable { contextMenuId = w.id }
+                            } else {
+                                Modifier.pointerInput(w.id) {
+                                    detectTapGestures(
+                                        onLongPress = {
+                                            contextMenuId = w.id
+                                        }
+                                    )
+                                }
+                            }
                         )
                         .then(
                             if (editMode) Modifier.pointerInput(editMode, w.id, w.gridX, w.gridY) {
