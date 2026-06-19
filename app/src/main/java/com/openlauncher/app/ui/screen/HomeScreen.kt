@@ -145,12 +145,12 @@ fun HomeScreen(
     val widgetBg     = when {
         isDayMode    -> Color(0xFFFFFFFF)
         hasWallpaper -> Color(0xCC000000)
-        else         -> Color.Black.copy(alpha = 0.35f)
+        else         -> Color.Black.copy(alpha = 0.0f)
     }
     val widgetBorder = when {
         isDayMode    -> Color(0xFFCCCCCC)
         hasWallpaper -> Color(0x22FFFFFF)
-        else         -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
+        else         -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.0f)
     }
     val headerTextColor   = if (isDayMode) Color(0xFF111111) else accent
     val statusIconColor   = if (isDayMode) Color(0xFF444444) else Color(0xFF666666)
@@ -170,17 +170,58 @@ fun HomeScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(38.dp)
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
+            // 1. Formateadores separados para aplicar estilos diferentes
+            val timeFormatter = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+            val dateFormatter = remember { java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault()) }
+
+            // 2. Estados para la hora y la fecha
+            var timeText by remember { mutableStateOf(timeFormatter.format(java.util.Date())) }
+            var dateText by remember { mutableStateOf(dateFormatter.format(java.util.Date())) }
+
+            // 3. Actualización constante en tiempo real
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val now = java.util.Date()
+                    timeText = timeFormatter.format(now)
+                    dateText = dateFormatter.format(now)
+                    kotlinx.coroutines.delay(1000)
+                }
+            }
+
+            // 4. Contenedor horizontal para la hora y la fecha juntas
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Espacio entre hora y fecha
+            ) {
+                // La HORA: Fuerte, blanca (o color de contraste) y en negrita
+                Text(
+                    text = timeText,
+                     color = if (isDayMode) Color.Black else Color.White,
+                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                     fontSize = 16.sp,
+                     letterSpacing = 0.5.sp
+                )
+
+                // La FECHA: Más sutil, color gris atenuado
+                Text(
+                    text = dateText,
+                     color = if (isDayMode) Color(0xFF666666) else Color(0xFF999999), // Gris premium
+                     fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
+                     fontSize = 16.sp,
+                     letterSpacing = 0.5.sp
+                )
+            }
+        /*    Text(
                 text          = settings.vehicleName.uppercase(),
                 style         = MaterialTheme.typography.titleLarge,
                 color         = headerTextColor,
                 letterSpacing = 3.sp,
                 fontSize      = 14.sp
-            )
+            ) */
             Spacer(Modifier.weight(1f))
             AnimatedVisibility(visible = isWifi, enter = fadeIn(), exit = fadeOut()) {
                 Icon(Icons.Default.Wifi, "WiFi", tint = statusIconColor, modifier = Modifier.size(16.dp))
@@ -219,7 +260,7 @@ fun HomeScreen(
             }
         }
 
-        HorizontalDivider(color = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF141414))
+      //  HorizontalDivider(color = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF141414))
 
         // ── Widget Grid ─────────────────────────────────────────────────────
         BoxWithConstraints(
