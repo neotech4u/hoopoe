@@ -1,8 +1,12 @@
 package com.openlauncher.app.ui.widget
 
+import android.content.Context
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,30 +25,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.openlauncher.app.data.MapProvider
 import com.openlauncher.app.util.LocationData
+import com.openlauncher.app.viewmodel.LauncherViewModel
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.io.File
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.cos
 import kotlin.math.sin
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.openlauncher.app.viewmodel.LauncherViewModel
-import androidx.compose.foundation.Canvas
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 
 @Composable
 fun SpeedometerWidgetMaps(
@@ -56,14 +58,16 @@ fun SpeedometerWidgetMaps(
     modifier: Modifier = Modifier
 ) {
     val maxSpeed     = if (isMetric) 200f else 124f
-    val speedDisplay = ((location?.speedMps ?: 0f) * if (isMetric) 3.6f else 2.237f).coerceAtLeast(0f)
+    val rawSpeedMps = location?.speedMps ?: 0f
+    val filteredSpeedMps = if (rawSpeedMps < 0.5f) 0f else rawSpeedMps
+    val speedDisplay = (filteredSpeedMps * if (isMetric) 3.6f else 2.237f).coerceAtLeast(0f)
     val unitLabel    = if (isMetric) "KM/H" else "MPH"
     val trackAlpha   = if (isDayMode) 0.18f else 0.07f
     val tickAlphaMaj = if (isDayMode) 0.50f else 0.28f
     val tickAlphaMin = if (isDayMode) 0.25f else 0.13f
 
     val contentColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-    val subAlpha     = if (isDayMode) 0.55f else 0.32f
+    val subAlpha      = if (isDayMode) 0.55f else 0.32f
     val tickBaseColor = if (isDayMode) Color(0xFF222222) else MaterialTheme.colorScheme.onBackground
 
     Box(
@@ -163,7 +167,6 @@ fun SpeedometerWidgetMaps(
     }
 }
 
-
 @Composable
 fun MapWidget(
     location: LocationData?,
@@ -181,6 +184,17 @@ fun MapWidget(
     val launcherViewModel: LauncherViewModel = viewModel()
     val settings by launcherViewModel.settings.collectAsState()
     val isMetric = settings.unitSystem.name == "METRIC"
+
+    // --- Auxiliar para verificar estado del Wi-Fi ---
+    fun isWifiConnected(ctx: Context): Boolean {
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val network = cm?.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    // Monitoreamos reactivamente si hay Wi-Fi disponible
+    var hasWifi by remember { mutableStateOf(isWifiConnected(context)) }
 
     // --- 1. CONFIGURACIÓN DE CACHÉ OFFLINE EXTENDIDO ---
     LaunchedEffect(Unit) {
@@ -232,7 +246,7 @@ fun MapWidget(
         onDispose { mapView.overlays.remove(eventsOverlay) }
     }
 
-    // Indicador estilo Google Maps (Borde blanco + Centro Accent)
+    // Indicador estilo Google Maps
     val marker = remember(accent) {
         Marker(mapView).apply {
             val size = (32 * context.resources.displayMetrics.density).toInt()
@@ -241,7 +255,7 @@ fun MapWidget(
 
             val paintDisc = Paint().apply {
                 isAntiAlias = true
-                color = Color.White.toArgb()
+                color = android.graphics.Color.WHITE
                 setShadowLayer(6f, 0f, 3f, android.graphics.Color.argb(80, 0, 0, 0))
             }
             val paintArrow = Paint().apply {
@@ -270,31 +284,45 @@ fun MapWidget(
 
             icon = BitmapDrawable(context.resources, bitmap)
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            rotation = 0f
         }
     }
 
-    // --- 2. FUNCIÓN DE ZOOM DINÁMICO ---
+    // Función de zoom dinámico
     fun getZoomByAccuracy(accuracyInMeters: Float?): Double {
         if (accuracyInMeters == null || accuracyInMeters <= 0) return 15.0
             return when {
-                accuracyInMeters < 15f -> 17.5
+                accuracyInMeters < 15f -> 17.0
                 accuracyInMeters < 50f -> 16.5
                 accuracyInMeters < 150f -> 16.0
                 else -> 15.0
             }
     }
 
-    // Actualizar posición del marcador y aplicar auto-centrado con Zoom dinámico
+    // Actualizar posición, comportamiento de red y precarga por WiFi
     LaunchedEffect(location, autoFollow) {
+        hasWifi = isWifiConnected(context)
+
+        // CAMBIO CLAVE: Cambia dinámicamente el comportamiento del hardware de osmdroid
+        if (hasWifi) {
+            mapView.setUseDataConnection(true) // Permite descargar libremente desde Internet
+        } else {
+            mapView.setUseDataConnection(false) // Fuerza el modo 100% Offline (bloquea peticiones HTTP de osmdroid)
+        }
+
         location?.let { loc ->
             val geoPoint = GeoPoint(loc.latitude, loc.longitude)
             marker.position = geoPoint
 
-            // SOLUCIÓN: Agregado ?: 0f para manejar de forma segura el Float? opcional
-            marker.rotation = loc.bearing ?: 0f
-
             if (!mapView.overlays.contains(marker)) {
                 mapView.overlays.add(marker)
+            }
+
+            if (autoFollow) {
+                val currentBearing = loc.bearing ?: 0f
+                mapView.mapOrientation = -currentBearing
+            } else {
+                mapView.mapOrientation = 0f
             }
 
             if (isFirstLoad || autoFollow) {
@@ -303,6 +331,28 @@ fun MapWidget(
                 mapView.controller.setZoom(targetZoom)
                 isFirstLoad = false
             }
+
+            // PRECARGA ACTIVA: Ocurre solo si detectamos Wi-Fi activo
+            if (hasWifi) {
+                val currentZoom = mapView.zoomLevelDouble.toInt()
+                TileSourceFactory.MAPNIK.let { _ ->
+                    val pTiles = org.osmdroid.tileprovider.cachemanager.CacheManager(mapView)
+                    Thread {
+                        try {
+                            // Almacena en caché el área actual de visualización y niveles adyacentes
+                            pTiles.downloadAreaAsync(
+                                context,
+                                mapView.boundingBox,
+                                currentZoom - 1,
+                                currentZoom + 1
+                            )
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }.start()
+                }
+            }
+
             mapView.invalidate()
         }
     }
@@ -354,7 +404,7 @@ fun MapWidget(
             modifier = Modifier.fillMaxSize()
         )
 
-        // UI Overlay: Cambiar de proveedor
+        // UI Overlay: Cambiar de proveedor e indicador de estado de red
         Box(
             modifier = Modifier
             .align(Alignment.TopStart)
@@ -369,9 +419,10 @@ fun MapWidget(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                // Agregamos un indicador visual "(OFFLINE)" en el texto por si estás en ruta sin Wi-Fi
                 Text(
-                    text = if (mapProvider == MapProvider.GOOGLE) "GOOGLE" else "OSM",
-                     color = Color.White,
+                    text = (if (mapProvider == MapProvider.GOOGLE) "GOOGLE" else "OSM") + (if (!hasWifi) " (OFFLINE)" else ""),
+                     color = if (hasWifi) Color.White else Color.Yellow,
                      fontSize = 10.sp,
                      style = MaterialTheme.typography.labelMedium
                 )
@@ -379,14 +430,12 @@ fun MapWidget(
         }
 
         // UI Overlay: Botones de Zoom manual
-        // UI Overlay: Botones de Zoom manual
         Column(
             modifier = Modifier
             .align(Alignment.TopEnd)
             .padding(10.dp),
                verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Botón de Zoom In
             Box(
                 modifier = Modifier
                 .size(42.dp)
@@ -406,7 +455,6 @@ fun MapWidget(
                 )
             }
 
-            // Botón de Zoom Out
             Box(
                 modifier = Modifier
                 .size(42.dp)
@@ -427,16 +475,16 @@ fun MapWidget(
             }
         }
 
-        // --- VELOCÍMETRO UBICADO ABAJO A LA IZQUIERDA ---
+        // VELOCÍMETRO
         SpeedometerWidgetMaps(
             location = location,
             isMetric = isMetric,
             accent = accent,
             isDayMode = isDayMode,
             modifier = Modifier
-            .align(Alignment.BottomStart) // Lo posiciona abajo a la izquierda
-            .padding(10.dp)               // Margen para que no toque los bordes
-            .size(110.dp)                 // Define un tamaño para el Canvas circular
+            .align(Alignment.BottomStart)
+            .padding(10.dp)
+            .size(110.dp)
             .offset(x = (-14).dp, y = 36.dp)
         )
 
@@ -449,6 +497,9 @@ fun MapWidget(
                     val targetZoom = getZoomByAccuracy(it.accuracy)
                     mapView.controller.animateTo(geoPoint)
                     mapView.controller.setZoom(targetZoom)
+                    if (it.bearing != null) {
+                        mapView.mapOrientation = -it.bearing!!
+                    }
                 }
             },
             modifier = Modifier
