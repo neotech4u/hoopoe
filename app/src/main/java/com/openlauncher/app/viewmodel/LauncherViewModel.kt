@@ -6,6 +6,10 @@ import android.content.Intent
 import android.database.ContentObserver
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.wifi.WifiManager
+import android.telephony.PhoneStateListener
+import android.telephony.SignalStrength
+import android.telephony.TelephonyManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -39,6 +43,14 @@ import com.openlauncher.app.data.DailyData
 import com.google.gson.Gson
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import org.osmdroid.util.GeoPoint
+import com.openlauncher.app.data.ValhallaApi
+import com.openlauncher.app.data.ValhallaRequest
+import com.openlauncher.app.data.ValhallaLocation
+import com.openlauncher.app.data.ValhallaManeuver
+import com.openlauncher.app.data.ValhallaSummary
+import com.openlauncher.app.data.ValhallaPolylineDecoder
+import com.openlauncher.app.data.RouteTracker
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -60,6 +72,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun resetSettings() {
         viewModelScope.launch { settingsRepo.resetToDefaults() }
     }
+
+    // ── Valhalla Navigation State ──────────────────────────────────────────────
+    private val _activeRoutePoints = MutableStateFlow<List<GeoPoint>?>(null)
+    val activeRoutePoints: StateFlow<List<GeoPoint>?> = _activeRoutePoints
+
+    private val _routeManeuvers = MutableStateFlow<List<ValhallaManeuver>?>(null)
+    val routeManeuvers: StateFlow<List<ValhallaManeuver>?> = _routeManeuvers
+
+    private val _routeSummary = MutableStateFlow<ValhallaSummary?>(null)
+    val routeSummary: StateFlow<ValhallaSummary?> = _routeSummary
+
+    private val _isNavigating = MutableStateFlow(false)
+    val isNavigating: StateFlow<Boolean> = _isNavigating
+
+    private val _destinationName = MutableStateFlow<String?>(null)
+    val destinationName: StateFlow<String?> = _destinationName
+
+    private val _currentManeuver = MutableStateFlow<ValhallaManeuver?>(null)
+    val currentManeuver: StateFlow<ValhallaManeuver?> = _currentManeuver
+
+    private val _distanceToManeuver = MutableStateFlow<Double?>(null)
+    val distanceToManeuver: StateFlow<Double?> = _distanceToManeuver
+
+    private val _routeBearing = MutableStateFlow<Float?>(null)
+    val routeBearing: StateFlow<Float?> = _routeBearing
+
+    private var destinationCoords: Pair<Double, Double>? = null
 
     // ── Navigation ────────────────────────────────────────────────────────────
     private val _nav = MutableStateFlow(NavDestination.HOME)
@@ -118,8 +157,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _shortcutPickerSlot.value = null
     }
 
-    // ── CarPlay / Android Auto picker ─────────────────────────────────────────
-    enum class AppPickerTarget { CARPLAY, ANDROID_AUTO, PIP, RADIO }
+    // ── CarPlay / Android Auto / Autostart picker ─────────────────────────────
+    enum class AppPickerTarget { CARPLAY, ANDROID_AUTO, PIP, RADIO, AUTOSTART_1, AUTOSTART_2, AUTOSTART_3, AUTOSTART_4 }
 
     private val _appPickerTarget = MutableStateFlow<AppPickerTarget?>(null)
     val carPlayPickerActive: StateFlow<Boolean> = MutableStateFlow(false) // kept for compat
@@ -145,12 +184,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _nav.value = NavDestination.APP_LIBRARY
     }
 
+    fun startAutostartPicker(slot: Int) {
+        _appPickerTarget.value = when (slot) {
+            0 -> AppPickerTarget.AUTOSTART_1
+            1 -> AppPickerTarget.AUTOSTART_2
+            2 -> AppPickerTarget.AUTOSTART_3
+            3 -> AppPickerTarget.AUTOSTART_4
+            else -> AppPickerTarget.AUTOSTART_1
+        }
+        _nav.value = NavDestination.APP_LIBRARY
+    }
+
+    private fun assignAutostart(index: Int, packageName: String) {
+        updateSettings {
+            val list = autostartPackages.toMutableList()
+            while (list.size <= index) list.add("")
+            list[index] = packageName
+            copy(autostartPackages = list)
+        }
+    }
+
     fun assignPickerApp(app: AppInfo) {
         when (_appPickerTarget.value) {
             AppPickerTarget.CARPLAY      -> updateSettings { copy(carPlayPackage = app.packageName) }
             AppPickerTarget.ANDROID_AUTO -> updateSettings { copy(androidAutoPackage = app.packageName) }
             AppPickerTarget.PIP          -> updateSettings { copy(pipAppPackage = app.packageName) }
             AppPickerTarget.RADIO        -> updateSettings { copy(radioPackage = app.packageName) }
+            AppPickerTarget.AUTOSTART_1  -> assignAutostart(0, app.packageName)
+            AppPickerTarget.AUTOSTART_2  -> assignAutostart(1, app.packageName)
+            AppPickerTarget.AUTOSTART_3  -> assignAutostart(2, app.packageName)
+            AppPickerTarget.AUTOSTART_4  -> assignAutostart(3, app.packageName)
             null -> {}
         }
         _appPickerTarget.value = null
@@ -161,6 +224,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun clearAndroidAutoApp()  { updateSettings { copy(androidAutoPackage = "") } }
     fun clearPipApp()          { updateSettings { copy(pipAppPackage = "") } }
     fun clearRadioApp()        { updateSettings { copy(radioPackage = "") } }
+    fun clearAutostartApp(index: Int) {
+        updateSettings {
+            val list = autostartPackages.toMutableList()
+            if (index in list.indices) {
+                list[index] = ""
+                copy(autostartPackages = list)
+            } else this
+        }
+    }
 
     fun updateWidgetConfig(id: String, spanX: Int, spanY: Int) {
         updateSettings {
@@ -250,6 +322,70 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setMapType(type: com.openlauncher.app.data.MapType) {
+        updateSettings {
+            copy(mapType = type)
+        }
+    }
+
+    fun toggleTraffic() {
+        updateSettings {
+            copy(showTraffic = !showTraffic)
+        }
+    }
+
+    fun calculateRoute(startLat: Double, startLon: Double, destLat: Double, destLon: Double, name: String?) {
+        destinationCoords = Pair(destLat, destLon)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val req = ValhallaRequest(
+                    locations = listOf(
+                        ValhallaLocation(startLat, startLon),
+                        ValhallaLocation(destLat, destLon)
+                    )
+                )
+                val response = ValhallaApi.service.getRoute(req)
+                val trip = response.trip
+                val leg = trip?.legs?.firstOrNull()
+                val shapeEncoded = leg?.shape
+                if (shapeEncoded != null) {
+                    val points = ValhallaPolylineDecoder.decode(shapeEncoded)
+                    _activeRoutePoints.value = points
+                    _routeManeuvers.value = leg.maneuvers
+                    _routeSummary.value = trip.summary
+                    _destinationName.value = name ?: "Destino seleccionado"
+                    _isNavigating.value = false // preview mode first
+                    _currentManeuver.value = leg.maneuvers?.firstOrNull()
+                    _distanceToManeuver.value = leg.maneuvers?.firstOrNull()?.distance?.let { it * 1000.0 }
+                    // Update initial segment bearing
+                    if (points.size >= 2) {
+                        _routeBearing.value = RouteTracker.getRouteSegmentBearing(points[0], points[1])
+                    } else {
+                        _routeBearing.value = null
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun startNavigation() {
+        _isNavigating.value = true
+    }
+
+    fun stopNavigation() {
+        _isNavigating.value = false
+        _activeRoutePoints.value = null
+        _routeManeuvers.value = null
+        _routeSummary.value = null
+        _destinationName.value = null
+        _currentManeuver.value = null
+        _distanceToManeuver.value = null
+        _routeBearing.value = null
+        destinationCoords = null
+    }
+
     fun removeWidget(id: String) {
         updateSettings {
             when (id) {
@@ -323,29 +459,44 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun loadInstalledApps() {
         if (_appsLoading.value) return
-        viewModelScope.launch(Dispatchers.IO) {
-            _appsLoading.value = true
-            val pm = getApplication<Application>().packageManager
 
-            // Use getInstalledApplications — same source Android Settings uses,
-            // catches apps with no launcher/ACTION_MAIN activity (e.g. CarPlay companions)
-            _apps.value = pm.getInstalledApplications(0)
+            viewModelScope.launch(Dispatchers.IO) {
+                _appsLoading.value = true
+
+                val pm = getApplication<Application>().packageManager
+
+                // Todas las apps que tienen icono en algún launcher
+                val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+
+                val launcherPackages = pm.queryIntentActivities(launcherIntent, 0)
+                .map { it.activityInfo.packageName }
+                .toSet()
+
+                _apps.value = pm.getInstalledApplications(0)
+                .filter { appInfo ->
+                    launcherPackages.contains(appInfo.packageName)
+                }
                 .mapNotNull { appInfo ->
                     try {
                         val label = pm.getApplicationLabel(appInfo).toString()
-                        if (label.isBlank()) return@mapNotNull null
+
                         AppInfo(
                             packageName = appInfo.packageName,
-                            appName     = label,
-                            icon        = pm.getApplicationIcon(appInfo),
-                            isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                            appName = label,
+                            icon = pm.getApplicationIcon(appInfo),
+                                isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
                         )
-                    } catch (_: Exception) { null }
+                    } catch (_: Exception) {
+                        null
+                    }
                 }
                 .distinctBy { it.packageName }
-                .sortedBy { it.appName }
-            _appsLoading.value = false
-        }
+                .sortedBy { it.appName.lowercase() }
+
+                _appsLoading.value = false
+            }
     }
 
     fun launchApp(packageName: String) {
@@ -361,7 +512,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             }
-        intent?.let { app.startActivity(it) }
+        intent?.let { 
+            runCatching {
+                app.startActivity(it)
+            }.onFailure { e ->
+                android.util.Log.e("LauncherVM", "Failed to launch app: $packageName", e)
+            }
+        }
     }
 
     // ── Now Playing ───────────────────────────────────────────────────────────
@@ -387,13 +544,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun getFallbackMusicPackage(context: Context): String {
         val pm = context.packageManager
         val candidates = listOf(
+            "com.jetappfactory.jetaudio",
+            "com.maxmpz.audioplayer",
             "com.spotify.music",
             "com.google.android.apps.youtube.music",
             "com.apple.android.music",
             "org.videolan.vlc",
             "com.pandora.android",
-            "com.jetappfactory.jetaudio",
-            "com.maxmpz.audioplayer",
             "com.deezer.android"
         )
         for (pkg in candidates) {
@@ -455,6 +612,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     // INTENTAR TRAER DE INTERNET (Hay Wi-Fi/Datos)
                     val resp = WeatherApi.service.getForecast(lat, lon, temperatureUnit = "celsius")
                     val daily = resp.dailyData
+                    val current = resp.currentWeather
 
                     if (daily != null) {
                         val daysList = daily.dates.mapIndexed { index, date ->
@@ -466,7 +624,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                             )
                         }
 
-                        val nuevoEstado = com.openlauncher.app.model.WeatherState(
+                        val nuevoEstado = WeatherState(
+                            currentTemperature = current?.temperature,
                             forecastDays = daysList,
                                 isLoading = false,
                                 error = null
@@ -482,14 +641,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         _weatherError.value = null
                     } // CORREGIDO: Se eliminó el caracter '/' sobrante que causaba el error de sintaxis
                 } catch (e: Exception) {
-                    // MODALIDAD OFFLINE: Si falla internet (no hay Wi-Fi), cargamos del caché
+                    // MODALIDAD OFFLINE: Si falla internet, cargamos del caché
                     val jsonGuardado = sharedPrefs.getString("cached_state", null)
                     if (!jsonGuardado.isNullOrEmpty()) {
                         // CORREGIDO: Casteo explícito seguro para evitar la confusión de GSON con Map.Entry
-                        val estadoRecuperado = gson.fromJson(jsonGuardado, com.openlauncher.app.model.WeatherState::class.java) as com.openlauncher.app.model.WeatherState
+                        val estadoRecuperado = gson.fromJson(jsonGuardado, WeatherState::class.java) as WeatherState
 
                         // CORREGIDO: Reconstruimos el estado clonando únicamente los días para evitar invocar 'currentTemperature'
-                        _weather.value = com.openlauncher.app.model.WeatherState(
+                        _weather.value = WeatherState(
+                            currentTemperature = estadoRecuperado.currentTemperature,
                             forecastDays = estadoRecuperado.forecastDays,
                                 isLoading = false,
                                 error = null
@@ -527,10 +687,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun stopLocationUpdates()  = locationMgr.stop()
 
     // ── Connectivity ──────────────────────────────────────────────────────────
-    private val _isWifi = MutableStateFlow(false)
-    private val _isData = MutableStateFlow(false)
-    val isWifi: StateFlow<Boolean> = _isWifi
-    val isData: StateFlow<Boolean> = _isData
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected: StateFlow<Boolean> = _isConnected
+
+    private val _wifiLevel = MutableStateFlow(-1) // 0-4, -1 = disconnected
+    val wifiLevel: StateFlow<Int> = _wifiLevel
+
+    private val _mobileLevel = MutableStateFlow(-1) // 0-4, -1 = disconnected
+    val mobileLevel: StateFlow<Int> = _mobileLevel
+
+    private var telephonyManager: TelephonyManager? = null
+    private var phoneStateListener: PhoneStateListener? = null
+
+    private fun startSignalListeners() {
+        telephonyManager = getApplication<Application>().getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        phoneStateListener = object : PhoneStateListener() {
+            override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
+                super.onSignalStrengthsChanged(signalStrength)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    _mobileLevel.value = signalStrength?.level ?: -1
+                } else {
+                    // Fallback for API < 23 if necessary, but Junsun is Android 10
+                    _mobileLevel.value = -1 
+                }
+            }
+        }
+        telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
+    }
 
     fun refreshMedia() {
         MediaListenerService.requestRefresh()
@@ -731,20 +914,32 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshConnectivity() {
         val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val wm = getApplication<Application>().applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-            _isWifi.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-            _isData.value = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+            val network = cm.activeNetwork
+            val caps = cm.getNetworkCapabilities(network)
+            _isConnected.value = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+            
+            // Wifi Strength
+            if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                val info = wm.connectionInfo
+                _wifiLevel.value = WifiManager.calculateSignalLevel(info.rssi, 5)
+            } else {
+                _wifiLevel.value = -1
+            }
         } else {
-            // activeNetwork requires API 23 — legacy path for Android 5.x head units
             @Suppress("DEPRECATION")
             val info = cm.activeNetworkInfo
-            @Suppress("DEPRECATION")
             val connected = info?.isConnected == true
-            @Suppress("DEPRECATION")
-            val type = info?.type
-            _isWifi.value = connected && type == ConnectivityManager.TYPE_WIFI
-            _isData.value = connected && type == ConnectivityManager.TYPE_MOBILE
+            _isConnected.value = connected
+            
+            if (connected && info?.type == ConnectivityManager.TYPE_WIFI) {
+                val wifiInfo = wm.connectionInfo
+                _wifiLevel.value = WifiManager.calculateSignalLevel(wifiInfo.rssi, 5)
+            } else {
+                _wifiLevel.value = -1
+            }
         }
     }
 
@@ -753,11 +948,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         locationMgr.stop()
         radioObserver?.let { getApplication<Application>().contentResolver.unregisterContentObserver(it) }
         radioObserver = null
+        telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE)
     }
 
     init {
         loadInstalledApps()
         refreshConnectivity()
+        startSignalListeners()
         if (hasSzchoicewayMcu) startHardwareRadioObserver()
         // Fetch weather on first location fix, then every 30 minutes.
         // The minute ticker covers the parked case where no location updates arrive.
@@ -771,6 +968,53 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (now - lastFetchMs >= 30 * 60 * 1_000L) {
                     lastFetchMs = now
                     fetchWeather(loc.latitude, loc.longitude, settings.value.unitSystem.name == "METRIC")
+                }
+            }
+        }
+        viewModelScope.launch {
+            locationMgr.location.filterNotNull().collect { loc ->
+                if (_isNavigating.value) {
+                    val points = _activeRoutePoints.value
+                    if (points != null && points.size >= 2) {
+                        val currentLoc = GeoPoint(loc.latitude, loc.longitude)
+                        val closestIdx = RouteTracker.findClosestSegmentIndex(currentLoc, points)
+                        
+                        // Check if user is off-route (e.g. > 70 meters)
+                        val distToRoute = RouteTracker.getDistanceToSegment(currentLoc, points[closestIdx], points[closestIdx + 1])
+                        if (distToRoute > 70.0) {
+                            val dest = destinationCoords
+                            if (dest != null) {
+                                calculateRoute(loc.latitude, loc.longitude, dest.first, dest.second, _destinationName.value)
+                                // Trigger navigation automatically on the recalculated route
+                                _isNavigating.value = true
+                            }
+                            return@collect
+                        }
+                        
+                        // Determine segment bearing for the arrow
+                        val segBearing = RouteTracker.getRouteSegmentBearing(points[closestIdx], points[closestIdx + 1])
+                        _routeBearing.value = segBearing
+                        
+                        // Update active maneuver based on closest segment index
+                        val maneuvers = _routeManeuvers.value
+                        if (maneuvers != null) {
+                            val activeManeuver = maneuvers.firstOrNull { m ->
+                                closestIdx >= m.beginShapeIndex && closestIdx <= m.endShapeIndex
+                            } ?: maneuvers.lastOrNull()
+                            
+                            _currentManeuver.value = activeManeuver
+                            
+                            if (activeManeuver != null) {
+                                val targetPoint = points.getOrNull(activeManeuver.endShapeIndex)
+                                if (targetPoint != null) {
+                                    val distanceToManeuverEnd = currentLoc.distanceToAsDouble(targetPoint)
+                                    _distanceToManeuver.value = distanceToManeuverEnd
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    _routeBearing.value = null
                 }
             }
         }

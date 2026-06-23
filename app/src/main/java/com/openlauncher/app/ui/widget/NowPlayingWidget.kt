@@ -69,7 +69,7 @@ fun NowPlayingWidget(
     modifier: Modifier = Modifier,
     isEditing: Boolean = false,
     isDayMode: Boolean = false,
-    hardwareRadio: com.openlauncher.app.viewmodel.LauncherViewModel.HardwareRadioState? = null,
+    hardwareRadio: LauncherViewModel.HardwareRadioState? = null,
     onLaunchHardwareRadio: () -> Unit = {},
     onStopHardwareRadio: () -> Unit = {},
     onRadioSeekUp: () -> Unit = {},
@@ -378,7 +378,7 @@ fun WeatherWidgetAudio(
 private fun RadioDeck(
     accent: Color,
     isDayMode: Boolean,
-    hardwareRadio: com.openlauncher.app.viewmodel.LauncherViewModel.HardwareRadioState?,
+    hardwareRadio: LauncherViewModel.HardwareRadioState?,
     onLaunchHardwareRadio: () -> Unit,
     onStopHardwareRadio: () -> Unit,
     onRadioSeekUp: () -> Unit,
@@ -760,7 +760,7 @@ private fun StandardMinimalPlayer(
                             }
                         }
                         if (hasCarPlay && hasAutoApp) {
-                            androidx.compose.material3.VerticalDivider(
+                            VerticalDivider(
                                 modifier = Modifier.fillMaxHeight().padding(vertical = 16.dp),
                                 color = if (isDayMode) Color(0xFFBBBBBB) else Color(0xFF1E1E1E)
                             )
@@ -784,26 +784,36 @@ private fun StandardMinimalPlayer(
                         }
                     }
                 } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Box(
+                        modifier = Modifier.fillMaxSize() .clickable { onTapToOpenApp() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(if (isDayMode) Color(0xFF111111) else accent.copy(alpha = 0.9f))
-                            .clickable { onTapToOpenApp() }
+                        // IMAGEN DE FONDO DESDE RES (no_music.png)
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = if (isDayMode) com.openlauncher.app.R.drawable.no_music_w else com.openlauncher.app.R.drawable.no_music
+                            ),
+                            contentDescription = "No Cover Art",
+                            modifier = Modifier.fillMaxSize(),
+                                                          contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                          alpha = 0.95f
+                        )
+
+                        // (Botón de Play y Texto)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                 contentDescription = "Play",
-                                 tint = if (isDayMode) Color.White else Color.Black,
-                                 modifier = Modifier.size(24.dp)
+
+                            Text(
+                                text = "TAP TO PLAY MUSIC",
+                                 color = contentTextColor,
+                                 fontSize = 9.sp,
+                                 letterSpacing = 1.5.sp,
+                                 fontWeight = FontWeight.Bold,
+                                 modifier = Modifier.padding(top = 120.dp)
                             )
                         }
-                        Text("TAP TO PLAY MUSIC", color = idleTextColor, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

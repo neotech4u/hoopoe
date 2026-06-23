@@ -17,10 +17,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Directions
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,9 +45,21 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.launch
+import com.openlauncher.app.data.NominatimApi
+import com.openlauncher.app.data.NominatimPlace
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SpeedometerWidgetMaps(
@@ -170,31 +183,50 @@ fun SpeedometerWidgetMaps(
 @Composable
 fun MapWidget(
     location: LocationData?,
+    bearing: Float,
     mapProvider: MapProvider,
+    mapType: com.openlauncher.app.data.MapType = com.openlauncher.app.data.MapType.ROADMAP,
+    showTraffic: Boolean = false,
     accent: Color,
     isDayMode: Boolean = false,
     editMode: Boolean = false,
     onToggleProvider: () -> Unit,
-              onLongClick: () -> Unit,
-              modifier: Modifier = Modifier
+    onToggleTraffic: () -> Unit = {},
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var isFirstLoad by remember { mutableStateOf(true) }
     var autoFollow by remember { mutableStateOf(true) }
     val launcherViewModel: LauncherViewModel = viewModel()
     val settings by launcherViewModel.settings.collectAsState()
     val isMetric = settings.unitSystem.name == "METRIC"
 
-    // --- Auxiliar para verificar estado del Wi-Fi ---
-    fun isWifiConnected(ctx: Context): Boolean {
+    // --- Valhalla Navigation state collection ---
+    val activeRoutePoints by launcherViewModel.activeRoutePoints.collectAsState()
+    val isNavigating by launcherViewModel.isNavigating.collectAsState()
+    val routeSummary by launcherViewModel.routeSummary.collectAsState()
+    val destinationName by launcherViewModel.destinationName.collectAsState()
+    val currentManeuver by launcherViewModel.currentManeuver.collectAsState()
+    val distanceToManeuver by launcherViewModel.distanceToManeuver.collectAsState()
+    val routeBearing by launcherViewModel.routeBearing.collectAsState()
+
+    // --- Search Query state ---
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<NominatimPlace>>(emptyList()) }
+    var isSearching by remember { mutableStateOf(false) }
+
+    // --- Auxiliar para verificar estado de la conexión ---
+    fun isConnected(ctx: Context): Boolean {
         val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         val network = cm?.activeNetwork ?: return false
         val capabilities = cm.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
-    // Monitoreamos reactivamente si hay Wi-Fi disponible
-    var hasWifi by remember { mutableStateOf(isWifiConnected(context)) }
+    // Monitoreamos reactivamente si hay conexión disponible
+    var isConnected by remember { mutableStateOf(isConnected(context)) }
 
     // --- 1. CONFIGURACIÓN DE CACHÉ OFFLINE EXTENDIDO ---
     LaunchedEffect(Unit) {
@@ -217,6 +249,32 @@ fun MapWidget(
         }
     }
 
+    // Route Polyline
+    val routePolyline = remember(accent) {
+        Polyline().apply {
+            outlinePaint.color = accent.toArgb()
+            outlinePaint.strokeWidth = 10f
+            outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+    }
+
+    LaunchedEffect(activeRoutePoints) {
+        mapView.overlays.remove(routePolyline)
+        if (!activeRoutePoints.isNullOrEmpty()) {
+            routePolyline.setPoints(activeRoutePoints)
+            mapView.overlays.add(routePolyline)
+            
+            // Adjust bounds to show preview
+            routeSummary?.let { summary ->
+                val boundingBox = org.osmdroid.util.BoundingBox(
+                    summary.maxLat, summary.maxLon, summary.minLat, summary.minLon
+                )
+                mapView.zoomToBoundingBox(boundingBox, true, 80)
+            }
+        }
+        mapView.invalidate()
+    }
+
     // Listener para desactivar el auto-seguimiento si el usuario arrastra el mapa manualmente
     DisposableEffect(mapView) {
         val listener = object : org.osmdroid.events.MapListener {
@@ -237,7 +295,17 @@ fun MapWidget(
         val receiver = object : org.osmdroid.events.MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean = false
             override fun longPressHelper(p: GeoPoint?): Boolean {
-                onLongClick()
+                if (p != null && location != null) {
+                    launcherViewModel.calculateRoute(
+                        startLat = location.latitude,
+                        startLon = location.longitude,
+                        destLat = p.latitude,
+                        destLon = p.longitude,
+                        name = "Punto en el mapa"
+                    )
+                } else {
+                    onLongClick()
+                }
                 return true
             }
         }
@@ -246,44 +314,7 @@ fun MapWidget(
         onDispose { mapView.overlays.remove(eventsOverlay) }
     }
 
-    // Indicador (Punto central con borde blanco)
-    val marker = remember(accent) {
-        Marker(mapView).apply {
-            val size = (22 * context.resources.displayMetrics.density).toInt()
-            val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(bitmap)
-
-            // Pintura para el disco blanco de fondo con sombra
-            val paintDisc = Paint().apply {
-                isAntiAlias = true
-                color = android.graphics.Color.WHITE
-                setShadowLayer(6f, 0f, 3f, android.graphics.Color.argb(80, 0, 0, 0))
-            }
-
-            // Pintura para el círculo central con tu color de acento
-            val paintCentralCircle = Paint().apply {
-                isAntiAlias = true
-                color = accent.toArgb()
-            }
-
-            // 1. Dibujamos el disco blanco exterior (que hereda la sombra proyectada)
-            val center = size / 2f
-            val outerRadius = size / 2.4f
-            canvas.drawCircle(center, center, outerRadius, paintDisc)
-
-            // 2. Dibujamos el nuevo círculo central (reemplaza a la flecha)
-            // Ajusta el multiplicador (ej. 3.8f o 4f) si quieres el círculo interno más grande o pequeño
-            val innerRadius = size / 3.2f
-            canvas.drawCircle(center, center, innerRadius, paintCentralCircle)
-
-            icon = BitmapDrawable(context.resources, bitmap)
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-            rotation = 0f
-        }
-    }
-
     // Indicador estilo Google Maps (con flecha al centro)
-    /*
     val marker = remember(accent) {
         Marker(mapView).apply {
             val size = (32 * context.resources.displayMetrics.density).toInt()
@@ -323,7 +354,7 @@ fun MapWidget(
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
             rotation = 0f
         }
-    } */
+    }
 
     // Función de zoom dinámico
     fun getZoomByAccuracy(accuracyInMeters: Float?): Double {
@@ -336,12 +367,14 @@ fun MapWidget(
             }
     }
 
-    // Actualizar posición, comportamiento de red y precarga por WiFi
-    LaunchedEffect(location, autoFollow) {
-        hasWifi = isWifiConnected(context)
+    // Guardamos de manera persistente el último rumbo válido para evitar saltos locos al detenerse
+    var lastValidBearing by remember { mutableStateOf(0f) }
 
-        // CAMBIO CLAVE: Cambia dinámicamente el comportamiento del hardware de osmdroid
-        if (hasWifi) {
+    LaunchedEffect(location, bearing, autoFollow){
+        isConnected = isConnected(context)
+
+        // Cambia dinámicamente el comportamiento de osmdroid
+        if (isConnected) {
             mapView.setUseDataConnection(true) // Permite descargar libremente desde Internet
         } else {
             mapView.setUseDataConnection(false) // Fuerza el modo 100% Offline (bloquea peticiones HTTP de osmdroid)
@@ -355,39 +388,34 @@ fun MapWidget(
                 mapView.overlays.add(marker)
             }
 
+            val currentBearing = bearing
+
+            // Siempre guardar el último bearing recibido
+            lastValidBearing = currentBearing
+
+            val targetBearing: Float = when {
+                routeBearing != null && isNavigating -> routeBearing!!
+                else -> currentBearing
+            }
+
             if (autoFollow) {
-                val currentBearing = loc.bearing ?: 0f
-                mapView.mapOrientation = -currentBearing
-            } else {
-                mapView.mapOrientation = 0f
-            }
-
-            if (isFirstLoad || autoFollow) {
-                val targetZoom = getZoomByAccuracy(loc.accuracy)
+                mapView.mapOrientation = -targetBearing.toFloat()
+                android.util.Log.d(
+                    "MAP_ROTATION",
+                    "orientation=${mapView.mapOrientation}"
+                )
+                marker.rotation = 0f
                 mapView.controller.animateTo(geoPoint)
-                mapView.controller.setZoom(targetZoom)
-                isFirstLoad = false
+            } else {
+                // Modo exploración manual (Mapa estático hacia el Norte)
+                mapView.mapOrientation = -targetBearing
+                marker.rotation = targetBearing
             }
 
-            // PRECARGA ACTIVA: Ocurre solo si detectamos Wi-Fi activo
-            if (hasWifi) {
-                val currentZoom = mapView.zoomLevelDouble.toInt()
-                TileSourceFactory.MAPNIK.let { _ ->
-                    val pTiles = org.osmdroid.tileprovider.cachemanager.CacheManager(mapView)
-                    Thread {
-                        try {
-                            // Almacena en caché el área actual de visualización y niveles adyacentes
-                            pTiles.downloadAreaAsync(
-                                context,
-                                mapView.boundingBox,
-                                currentZoom - 1,
-                                currentZoom + 1
-                            )
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }.start()
-                }
+            if (isFirstLoad) {
+                mapView.controller.setZoom(17.0)
+                mapView.controller.setCenter(geoPoint)
+                isFirstLoad = false
             }
 
             mapView.invalidate()
@@ -395,15 +423,22 @@ fun MapWidget(
     }
 
     // Proveedores de mapas (Google / OSM)
-    LaunchedEffect(mapProvider) {
+    LaunchedEffect(mapProvider, mapType, showTraffic) {
         if (mapProvider == MapProvider.GOOGLE) {
+            val layerCode = when (mapType) {
+                com.openlauncher.app.data.MapType.ROADMAP -> "m"
+                com.openlauncher.app.data.MapType.SATELLITE -> "s"
+                com.openlauncher.app.data.MapType.HYBRID -> "y"
+                com.openlauncher.app.data.MapType.TERRAIN -> "p"
+            }
+            val layer = if (showTraffic) "$layerCode,traffic" else layerCode
             val googleTiles = object : org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase(
                 "GoogleRoads", 0, 20, 256, "",
                 arrayOf(
-                    "https://mt0.google.com/vt/lyrs=m",
-                    "https://mt1.google.com/vt/lyrs=m",
-                    "https://mt2.google.com/vt/lyrs=m",
-                    "https://mt3.google.com/vt/lyrs=m"
+                    "https://mt0.google.com/vt/lyrs=$layer",
+                    "https://mt1.google.com/vt/lyrs=$layer",
+                    "https://mt2.google.com/vt/lyrs=$layer",
+                    "https://mt3.google.com/vt/lyrs=$layer"
                 )
             ) {
                 override fun getTileURLString(pMapTileIndex: Long): String {
@@ -419,16 +454,20 @@ fun MapWidget(
         }
     }
 
-    // Modo noche/día
+    // Modo noche/día (Estilo Android Auto Dark)
     LaunchedEffect(isDayMode) {
         if (isDayMode) {
             mapView.overlayManager.tilesOverlay.setColorFilter(null)
         } else {
+            // Matriz optimizada para imitar el look de Android Auto / Google Maps Night
+            // 1. Invertimos ligeramente los colores (-0.8f)
+            // 2. Aplicamos un tinte azulado profundo (Offset 40 en Rojo, 50 en Verde, 70 en Azul)
+            // 3. Ajustamos el brillo para que no sea excesivamente oscuro pero sí confortable
             val matrix = floatArrayOf(
-                -0.6f,  0f,    0f,    0f, 200f,
-                0f,   -0.6f,  0f,    0f, 200f,
-                0f,    0f,   -0.6f,  0f, 200f,
-                0f,    0f,    0f,    1.0f, 0f
+                -0.8f, 0f, 0f, 0f, 220f,
+                0f, -0.8f, 0f, 0f, 225f,
+                0f, 0f, -0.8f, 0f, 245f,
+                0f, 0f, 0f, 1.0f, 0f
             )
             mapView.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(matrix))
         }
@@ -446,23 +485,76 @@ fun MapWidget(
             modifier = Modifier
             .align(Alignment.TopStart)
             .padding(10.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color.Black.copy(alpha = 0.6f))
+            .clip(MaterialTheme.shapes.medium)
+            .background(Color.Black.copy(alpha = 0.7f))
             .clickable { onToggleProvider() }
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                // Agregamos un indicador visual "(OFFLINE)" en el texto por si estás en ruta sin Wi-Fi
+                // Agregamos un indicador visual "(OFFLINE)" en el texto por si estás en ruta sin conexión
                 Text(
-                    text = (if (mapProvider == MapProvider.GOOGLE) "GOOGLE" else "OSM") + (if (!hasWifi) " (OFFLINE)" else ""),
-                     color = if (hasWifi) Color.White else Color.Yellow,
+                    text = (if (mapProvider == MapProvider.GOOGLE) "GOOGLE" else "OSM") +
+                    (if (mapProvider == MapProvider.GOOGLE) " (${mapType.name})" else "") +
+                    (if (showTraffic && mapProvider == MapProvider.GOOGLE) " + TRAFFIC" else "") +
+                    (if (!isConnected) " (OFFLINE)" else ""),
+                     color = if (isConnected) Color.White else Color.Yellow,
                      fontSize = 10.sp,
                      style = MaterialTheme.typography.labelMedium
                 )
+            }
+        }
+
+        // Botón de Tráfico (Solo visible si es Google)
+        if (mapProvider == MapProvider.GOOGLE) {
+            Row(
+                modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 50.dp, start = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Togle Tráfico
+                Box(
+                    modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .background(if (showTraffic) accent.copy(alpha = 0.8f) else Color.Black.copy(alpha = 0.7f))
+                    .clickable { onToggleTraffic() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "TRAFFIC",
+                         color = Color.White,
+                         fontSize = 10.sp,
+                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                }
+
+                // Ciclo de Tipo de Mapa
+                Box(
+                    modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .clickable {
+                        val next = when (mapType) {
+                            com.openlauncher.app.data.MapType.ROADMAP -> com.openlauncher.app.data.MapType.SATELLITE
+                            com.openlauncher.app.data.MapType.SATELLITE -> com.openlauncher.app.data.MapType.HYBRID
+                            com.openlauncher.app.data.MapType.HYBRID -> com.openlauncher.app.data.MapType.TERRAIN
+                            com.openlauncher.app.data.MapType.TERRAIN -> com.openlauncher.app.data.MapType.ROADMAP
+                        }
+                        launcherViewModel.setMapType(next)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "VIEW",
+                         color = Color.White,
+                         fontSize = 10.sp,
+                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                }
             }
         }
 
@@ -475,9 +567,9 @@ fun MapWidget(
         ) {
             Box(
                 modifier = Modifier
-                .size(42.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.6f))
+                .background(Color.Black.copy(alpha = 0.7f))
                 .clickable {
                     autoFollow = false
                     mapView.controller.zoomIn()
@@ -488,15 +580,15 @@ fun MapWidget(
                     imageVector = Icons.Default.Add,
                      contentDescription = "Zoom In",
                      tint = Color.White,
-                     modifier = Modifier.size(16.dp)
+                     modifier = Modifier.size(18.dp)
                 )
             }
 
             Box(
                 modifier = Modifier
-                .size(42.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.6f))
+                .background(Color.Black.copy(alpha = 0.7f))
                 .clickable {
                     autoFollow = false
                     mapView.controller.zoomOut()
@@ -507,7 +599,7 @@ fun MapWidget(
                     imageVector = Icons.Default.Remove,
                      contentDescription = "Zoom Out",
                      tint = Color.White,
-                     modifier = Modifier.size(16.dp)
+                     modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -531,9 +623,8 @@ fun MapWidget(
                 autoFollow = true
                 location?.let {
                     val geoPoint = GeoPoint(it.latitude, it.longitude)
-                    val targetZoom = getZoomByAccuracy(it.accuracy)
                     mapView.controller.animateTo(geoPoint)
-                    mapView.controller.setZoom(targetZoom)
+                    mapView.controller.setZoom(17.0)
                     if (it.bearing != null) {
                         mapView.mapOrientation = -it.bearing!!
                     }
@@ -546,12 +637,7 @@ fun MapWidget(
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.6f))
         ) {
-            Icon(
-                imageVector = Icons.Default.GpsFixed,
-                 contentDescription = "Center on location",
-                 tint = Color.White,
-                 modifier = Modifier.size(16.dp)
-            )
+            Icon(Icons.Default.GpsFixed, contentDescription = "Center on location", tint = Color.White, modifier = Modifier.size(16.dp))
         }
 
         if (editMode) {
