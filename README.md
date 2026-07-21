@@ -98,20 +98,6 @@ Remaining targets:
 - [ ] **Offline Weather via FM/RDS:** A highly experimental goal to pull local weather data directly from FM radio bands (RDS/TMC) using the car's physical antenna — bypassing Wi-Fi entirely.
 - [ ] **Universal Theming Engine:** A standardized platform for the community to build, share, and install full visual themes.
 
----
-
-## 🤝 Contributing (Open Source First)
-
-This project is open-source because it takes a community to build something that works across hundreds of different head unit models. Whether you are a developer, a designer, or just someone testing it in your car, your help is welcome!
-
-### How you can help:
-1. **Test on your hardware:** Install the APK on your specific head unit, break things, and submit Bug Reports in the [Issues tab](../../issues).
-2. **Feature Requests:** Have a cool idea? Open a discussion.
-3. **Pull Requests:** See a bug you can fix or a feature you want to add? Fork the repo and submit a PR. *(Please check the issues tab first to see what is currently being worked on!)*
-
----
-
-## Donate
 
 This app is fully free and open-source, a donation isn't required but would be greatly appreciated to help support the constant updates and fixes planned based on your suggestions!
 
