@@ -130,7 +130,7 @@ fun OnboardingScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "OPEN LAUNCHER",
+                        text = "HOPOE LAUNCHER",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -336,7 +336,7 @@ private fun StepItem(stepIndex: Int, title: String, currentStep: Int) {
 private fun IntroStep(accent: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
-            text = "WELCOME TO OPEN LAUNCHER",
+            text = "WELCOME TO HOPOE LAUNCHER",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = accent,
@@ -372,7 +372,7 @@ private fun LocationStep(accent: Color, isGranted: Boolean, onGrant: () -> Unit)
             fontSize = 20.sp
         )
         Text(
-            text = "To compute your real-time speed, compass bearing, altitude telemetry, and update local weather conditions, Open Launcher requires high-precision GPS services.",
+            text = "To compute your real-time speed, compass bearing, altitude telemetry, and update local weather conditions, Hoopoe Launcher requires high-precision GPS services.",
             color = Color(0xFFAAAAAA),
             fontSize = 13.sp,
             lineHeight = 20.sp
@@ -441,7 +441,7 @@ private fun MediaStep(accent: Color, isGranted: Boolean, onGrant: () -> Unit) {
             fontSize = 20.sp
         )
         Text(
-            text = "To capture live album art, track info, progress bars, and provide playback control from your dashboard cards, Open Launcher listens to active media notifications.",
+            text = "To capture live album art, track info, progress bars, and provide playback control from your dashboard cards, Hoopoe Launcher listens to active media notifications.",
             color = Color(0xFFAAAAAA),
             fontSize = 13.sp,
             lineHeight = 20.sp
@@ -510,7 +510,7 @@ private fun FinalStep(accent: Color, onSetDefault: () -> Unit) {
             fontSize = 20.sp
         )
         Text(
-            text = "You are all set up and ready to go. You can set Open Launcher as your default home app so it launches automatically whenever you start your vehicle.",
+            text = "You are all set up and ready to go. You can set Hoopoe Launcher as your default home app so it launches automatically whenever you start your vehicle.",
             color = Color(0xFFAAAAAA),
             fontSize = 13.sp,
             lineHeight = 20.sp

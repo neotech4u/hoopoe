@@ -228,7 +228,7 @@ private fun RadioDeck(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                "Start your head unit's radio app — or assign it below so Open Launcher can mirror and control it",
+                "Start your head unit's radio app — or assign it below so Hoopoe Launcher can mirror and control it",
                 color = dimColor, fontSize = 7.sp, fontFamily = FontFamily.Monospace,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 lineHeight = 10.sp,

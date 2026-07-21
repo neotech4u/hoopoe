@@ -140,8 +140,8 @@ fun SettingsScreen(
 
             SettingsButton(
                 label    = "Set as Default Launcher",
-                sublabel = if (isDefaultLauncher) "Active — Open Launcher is the home app"
-                           else "Required so the head unit boots into Open Launcher",
+                sublabel = if (isDefaultLauncher) "Active — Hoopoe Launcher is the home app"
+                           else "Required so the head unit boots into Hoopoe Launcher",
                 icon     = Icons.Default.Home,
                 accent   = if (isDefaultLauncher) accent else Color(0xFF993333),
                 onClick  = {
