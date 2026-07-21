@@ -97,8 +97,3 @@ Remaining targets:
 - [ ] **Advanced Color Engine:** Per-element hex control for every surface in the UI — accent, text, borders, backgrounds — to precisely match a car's specific dashboard ambient lighting.
 - [ ] **Offline Weather via FM/RDS:** A highly experimental goal to pull local weather data directly from FM radio bands (RDS/TMC) using the car's physical antenna — bypassing Wi-Fi entirely.
 - [ ] **Universal Theming Engine:** A standardized platform for the community to build, share, and install full visual themes.
-
-
-This app is fully free and open-source, a donation isn't required but would be greatly appreciated to help support the constant updates and fixes planned based on your suggestions!
-
-[![Donate with PayPal](https://raw.githubusercontent.com/stefan-niedermann/paypal-donate-button/master/paypal-donate-button.png)](https://paypal.me/dw2lam)
