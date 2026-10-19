@@ -95,14 +95,23 @@ class MediaListenerService : NotificationListenerService() {
             ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: meta?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
             ?: ""
-        // Prefer the largest bitmap the source provides; many apps put a
-        // downscaled image in ALBUM_ART and the full one in ART (or vice versa)
+        // Prefer the largest bitmap the source provides, but clamp to 512px to prevent OOM on 2 GB units
         val art = try {
-            listOfNotNull(
+            val raw = listOfNotNull(
                 meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART),
                 meta?.getBitmap(MediaMetadata.METADATA_KEY_ART),
                 meta?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
             ).maxByOrNull { it.width * it.height }
+
+            if (raw != null && (raw.width > 512 || raw.height > 512)) {
+                val maxDim = 512f
+                val ratio = minOf(maxDim / raw.width, maxDim / raw.height)
+                val targetW = (raw.width * ratio).toInt().coerceAtLeast(1)
+                val targetH = (raw.height * ratio).toInt().coerceAtLeast(1)
+                android.graphics.Bitmap.createScaledBitmap(raw, targetW, targetH, true)
+            } else {
+                raw
+            }
         } catch (_: Exception) { null }
         val artUri = meta?.getString(MediaMetadata.METADATA_KEY_ART_URI)
             ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)

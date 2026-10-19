@@ -29,10 +29,17 @@ fun ClockWidget(
 ) {
     var calendar by remember { mutableStateOf(Calendar.getInstance()) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(style) {
         while (true) {
-            delay(1_000)
             calendar = Calendar.getInstance()
+            if (style == ClockStyle.DIGITAL) {
+                // Digital clock displays hour and minute only; delay to next minute boundary to eliminate 59 wakeups/min
+                val millisUntilNextMinute = 60_000L - (System.currentTimeMillis() % 60_000L)
+                delay(millisUntilNextMinute + 50L)
+            } else {
+                // Analog clock renders second hand
+                delay(1_000L)
+            }
         }
     }
 

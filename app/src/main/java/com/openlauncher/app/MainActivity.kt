@@ -163,10 +163,7 @@ class MainActivity : ComponentActivity() {
                                         vm.navigate(dest)
                                     },
                                     onShortcutClick = { slot ->
-                                        val shortcut = settings.shortcuts[slot]
-                                        if (shortcut.packageName.isNotEmpty()) {
-                                            vm.launchApp(shortcut.packageName)
-                                        }
+                                        vm.launchShortcut(slot)
                                     },
                                     onShortcutLongPress  = { slot -> vm.startShortcutPicker(slot) },
                                     onShortcutRemove     = { slot -> vm.removeShortcut(slot) },

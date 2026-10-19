@@ -335,20 +335,112 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun launchShortcut(slot: Int) {
+        val shortcut = settings.value.shortcuts.getOrNull(slot) ?: return
+        if (shortcut.packageName.isNotEmpty()) {
+            launchApp(shortcut.packageName)
+            return
+        }
+        val icon = shortcut.customIconOverride ?: shortcut.defaultIcon
+        when (icon) {
+            DefaultShortcutIcon.RADIO -> launchHardwareRadioApp()
+            DefaultShortcutIcon.PHONE -> launchPhoneApp()
+            DefaultShortcutIcon.MUSIC, DefaultShortcutIcon.SPEAKER -> launchMusicApp()
+            DefaultShortcutIcon.MAP, DefaultShortcutIcon.NAVIGATION -> launchNavigationApp()
+            DefaultShortcutIcon.SETTINGS -> launchSettingsApp()
+            DefaultShortcutIcon.CAMERA, DefaultShortcutIcon.VIDEOCAM -> launchCameraApp()
+            else -> startShortcutPicker(slot)
+        }
+    }
+
+    fun launchPhoneApp() {
+        val app = getApplication<Application>()
+        val dialIntent = Intent(Intent.ACTION_DIAL).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (runCatching { app.startActivity(dialIntent) }.isSuccess) return
+
+        val candidate = _apps.value.firstOrNull { a ->
+            val p = a.packageName.lowercase()
+            p.contains("dialer") || p.contains("phone") || p.contains(".bt") || p.contains("bluetooth")
+        }
+        if (candidate != null) {
+            launchApp(candidate.packageName)
+        }
+    }
+
+    fun launchMusicApp() {
+        val npPkg = nowPlaying.value?.controller?.packageName
+        if (!npPkg.isNullOrEmpty()) {
+            launchApp(npPkg)
+            return
+        }
+        val candidate = _apps.value.firstOrNull { a ->
+            val p = a.packageName.lowercase()
+            p.contains("music") || p.contains("spotify") || p.contains("audio") || p.contains("player")
+        }
+        if (candidate != null) {
+            launchApp(candidate.packageName)
+        }
+    }
+
+    fun launchNavigationApp() {
+        val app = getApplication<Application>()
+        val geoIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (runCatching { app.startActivity(geoIntent) }.isSuccess) return
+
+        val candidate = _apps.value.firstOrNull { a ->
+            val p = a.packageName.lowercase()
+            p.contains("maps") || p.contains("waze") || p.contains("navigation") || p.contains("navi")
+        }
+        if (candidate != null) {
+            launchApp(candidate.packageName)
+        }
+    }
+
+    fun launchCameraApp() {
+        val candidate = _apps.value.firstOrNull { a ->
+            val p = a.packageName.lowercase()
+            p.contains("camera") || p.contains("avin") || p.contains("aux") || p.contains("fcam") || p.contains("dvr")
+        }
+        if (candidate != null) {
+            launchApp(candidate.packageName)
+        } else {
+            runCatching {
+                val intent = Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                getApplication<Application>().startActivity(intent)
+            }
+        }
+    }
+
+    fun launchSettingsApp() {
+        val app = getApplication<Application>()
+        val intent = Intent(AndroidSettings.ACTION_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { app.startActivity(intent) }
+    }
+
     fun launchApp(packageName: String) {
         val app = getApplication<Application>()
         val pm  = app.packageManager
-        // Try standard launch intent first; fall back to first ACTION_MAIN activity in package
-        val intent = pm.getLaunchIntentForPackage(packageName)
-            ?: pm.queryIntentActivities(
-                Intent(Intent.ACTION_MAIN).setPackage(packageName), 0
-            ).firstOrNull()?.activityInfo?.let { ai ->
-                Intent(Intent.ACTION_MAIN).apply {
-                    setClassName(ai.packageName, ai.name)
+        runCatching {
+            val intent = (pm.getLaunchIntentForPackage(packageName)
+                ?: pm.queryIntentActivities(
+                    Intent(Intent.ACTION_MAIN).setPackage(packageName), 0
+                ).firstOrNull()?.activityInfo?.let { ai ->
+                    Intent(Intent.ACTION_MAIN).apply {
+                        setClassName(ai.packageName, ai.name)
+                    }
+                })?.apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-            }
-        intent?.let { app.startActivity(it) }
+            intent?.let { app.startActivity(it) }
+        }
     }
 
     // ── Now Playing ───────────────────────────────────────────────────────────

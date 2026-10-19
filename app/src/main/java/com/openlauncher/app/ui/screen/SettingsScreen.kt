@@ -566,7 +566,13 @@ fun SettingsScreen(
                 sublabel = if (settings.wallpaperUri.isNotEmpty()) "Custom wallpaper active" else "Choose image from gallery",
                 icon     = Icons.Default.Wallpaper,
                 accent   = accent,
-                onClick  = { wallpaperPicker.launch(arrayOf("image/*")) }
+                onClick  = {
+                    runCatching {
+                        wallpaperPicker.launch(arrayOf("image/*"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "No gallery or document provider available on this unit", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
             )
             if (settings.wallpaperUri.isNotEmpty()) {
                 Column {

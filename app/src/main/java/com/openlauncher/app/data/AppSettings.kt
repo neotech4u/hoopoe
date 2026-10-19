@@ -63,7 +63,7 @@ data class WidgetConfig(
 )
 
 data class AppSettings(
-    val vehicleName: String = "MY CAR",
+    val vehicleName: String = "DZIRE",
     val accentColor: Int = Color.White.toArgb(),
     val backgroundColor: Int = Color.Black.toArgb(),
     val fontColor: Int = Color.White.toArgb(),
@@ -85,7 +85,7 @@ data class AppSettings(
     val useGradient: Boolean = false,
     val gradientEndColor: Int = Color.Black.toArgb(),
     val wallpaperDim: Float = 0.55f,
-    val sidebarPosition: SidebarPosition = SidebarPosition.LEFT,
+    val sidebarPosition: SidebarPosition = SidebarPosition.RIGHT,
     val bottomBarShortcutsRight: Boolean = false,
     val showAltimeter: Boolean = false,
     val showSpeedometer: Boolean = false,
@@ -108,9 +108,10 @@ data class AppSettings(
 
 fun defaultShortcuts() = listOf(
     ShortcutConfig(label = "Radio", isDefault = true, defaultIcon = DefaultShortcutIcon.RADIO),
-    ShortcutConfig(label = "Camera", isDefault = true, defaultIcon = DefaultShortcutIcon.CAMERA),
+    ShortcutConfig(label = "Navi", isDefault = true, defaultIcon = DefaultShortcutIcon.NAVIGATION),
     ShortcutConfig(label = "Music", isDefault = true, defaultIcon = DefaultShortcutIcon.MUSIC),
-    ShortcutConfig(label = "Phone", isDefault = true, defaultIcon = DefaultShortcutIcon.PHONE)
+    ShortcutConfig(label = "Phone", isDefault = true, defaultIcon = DefaultShortcutIcon.PHONE),
+    ShortcutConfig(label = "Camera", isDefault = true, defaultIcon = DefaultShortcutIcon.CAMERA)
 )
 
 fun defaultWidgetLayout() = listOf(
