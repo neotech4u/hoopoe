@@ -48,6 +48,7 @@ fun SettingsScreen(
     onUpdate: (AppSettings.() -> AppSettings) -> Unit,
     onReset: () -> Unit,
     onPreviewLogon: () -> Unit = {},
+    onPreviewTravelDua: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -748,6 +749,57 @@ fun SettingsScreen(
                     steps         = 71, // 5 degree steps: 360 / 5 - 1 = 71 steps
                     colors        = sliderColors(accent),
                     modifier      = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
+            }
+        }
+
+        // ── Startup & Prayers ────────────────────────────────────────────────
+        SettingsSection("Startup & Prayers") {
+            SettingsRow(
+                label    = "Startup Boot Animation",
+                sublabel = "Plays logon video on head unit cold boot",
+                icon     = Icons.Default.PlayCircle
+            ) {
+                Switch(
+                    checked         = settings.playLogonAnimation,
+                    onCheckedChange = { onUpdate { copy(playLogonAnimation = it) } },
+                    colors          = switchColors(accent)
+                )
+            }
+
+            if (settings.playLogonAnimation) {
+                SettingsDivider()
+                SettingsButton(
+                    label    = "Preview Boot Animation",
+                    sublabel = "Replay startup video animation",
+                    icon     = Icons.Default.Visibility,
+                    accent   = accent,
+                    onClick  = onPreviewLogon
+                )
+            }
+
+            SettingsDivider()
+
+            SettingsRow(
+                label    = "Travel Dua on Startup",
+                sublabel = "Displays Safar Dua (பிரயாண துஆ) on initial boot",
+                icon     = Icons.Default.DirectionsCar
+            ) {
+                Switch(
+                    checked         = settings.showTravelDua,
+                    onCheckedChange = { onUpdate { copy(showTravelDua = it) } },
+                    colors          = switchColors(accent)
+                )
+            }
+
+            if (settings.showTravelDua) {
+                SettingsDivider()
+                SettingsButton(
+                    label    = "Preview Travel Dua",
+                    sublabel = "Recite & preview Safar Dua (பிரயாண துஆ)",
+                    icon     = Icons.Default.Visibility,
+                    accent   = accent,
+                    onClick  = onPreviewTravelDua
                 )
             }
         }

@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         var hasPlayedLogonSession = false
+        var hasShownTravelDuaSession = false
     }
 
     private val vm: LauncherViewModel by viewModels()
@@ -82,8 +83,12 @@ class MainActivity : ComponentActivity() {
             val pickerSlot      by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
             val appPickerTarget by vm.appPickerTarget.collectAsStateWithLifecycle()
             val isPreviewingLogon by vm.previewingLogon.collectAsStateWithLifecycle()
+            val isPreviewingTravelDua by vm.previewingTravelDua.collectAsStateWithLifecycle()
             var showLogon by remember {
                 mutableStateOf(!hasPlayedLogonSession && settings.playLogonAnimation)
+            }
+            var showTravelDua by remember {
+                mutableStateOf(!hasShownTravelDuaSession && settings.showTravelDua)
             }
 
             val accent         = Color(settings.accentColor)
@@ -117,6 +122,15 @@ class MainActivity : ComponentActivity() {
                             hasPlayedLogonSession = true
                             showLogon = false
                             vm.dismissLogonPreview()
+                        }
+                    )
+                } else if (showTravelDua || isPreviewingTravelDua) {
+                    TravelDuaScreen(
+                        accent = accent,
+                        onDismiss = {
+                            hasShownTravelDuaSession = true
+                            showTravelDua = false
+                            vm.dismissTravelDua()
                         }
                     )
                 } else if (!settingsLoaded) {
@@ -268,7 +282,8 @@ class MainActivity : ComponentActivity() {
                                         accent   = accent,
                                         onUpdate = { block -> vm.updateSettings(block) },
                                         onReset  = { vm.resetSettings() },
-                                        onPreviewLogon = { vm.previewLogonAnimation() }
+                                        onPreviewLogon = { vm.previewLogonAnimation() },
+                                        onPreviewTravelDua = { vm.previewTravelDua() }
                                     )
                                 }
                             }

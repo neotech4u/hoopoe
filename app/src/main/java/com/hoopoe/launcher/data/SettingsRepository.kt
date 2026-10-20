@@ -60,6 +60,7 @@ class SettingsRepository(private val context: Context) {
         val GRADIENT_DIRECTION    = stringPreferencesKey("gradient_direction")
         val USE_CUSTOM_BG_COLOR   = booleanPreferencesKey("use_custom_bg_color")
         val PLAY_LOGON_ANIMATION  = booleanPreferencesKey("play_logon_animation")
+        val SHOW_TRAVEL_DUA       = booleanPreferencesKey("show_travel_dua")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -136,7 +137,8 @@ class SettingsRepository(private val context: Context) {
                 speedometerDigitalOnly = prefs[Keys.SPEEDOMETER_DIGITAL_ONLY] ?: defaults.speedometerDigitalOnly,
                 gradientDirection = prefs[Keys.GRADIENT_DIRECTION]?.let { runCatching { GradientDirection.valueOf(it) }.getOrNull() } ?: defaults.gradientDirection,
                 useCustomBackgroundColor = prefs[Keys.USE_CUSTOM_BG_COLOR] ?: defaults.useCustomBackgroundColor,
-                playLogonAnimation       = prefs[Keys.PLAY_LOGON_ANIMATION] ?: defaults.playLogonAnimation
+                playLogonAnimation       = prefs[Keys.PLAY_LOGON_ANIMATION] ?: defaults.playLogonAnimation,
+                showTravelDua            = prefs[Keys.SHOW_TRAVEL_DUA] ?: defaults.showTravelDua
             )
     }
 
@@ -194,6 +196,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.GRADIENT_DIRECTION] = s.gradientDirection.name
             prefs[Keys.USE_CUSTOM_BG_COLOR] = s.useCustomBackgroundColor
             prefs[Keys.PLAY_LOGON_ANIMATION]  = s.playLogonAnimation
+            prefs[Keys.SHOW_TRAVEL_DUA]       = s.showTravelDua
     }
 
     suspend fun resetToDefaults() {

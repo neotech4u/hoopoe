@@ -69,6 +69,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun previewLogonAnimation() { _previewingLogon.value = true }
     fun dismissLogonPreview()   { _previewingLogon.value = false }
 
+    // ── Travel Dua Preview ────────────────────────────────────────────────────
+    private val _previewingTravelDua = MutableStateFlow(false)
+    val previewingTravelDua: StateFlow<Boolean> = _previewingTravelDua
+
+    fun previewTravelDua() { _previewingTravelDua.value = true }
+    fun dismissTravelDua() { _previewingTravelDua.value = false }
+
     // ── Shortcut picker ───────────────────────────────────────────────────────
     private val _shortcutPickerSlot = MutableStateFlow<Int?>(null)
     val shortcutPickerSlot: StateFlow<Int?> = _shortcutPickerSlot
