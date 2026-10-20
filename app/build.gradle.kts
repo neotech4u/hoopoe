@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace  = "com.openlauncher.app"
+    namespace  = "com.hoopoe.launcher"
     compileSdk {
         version = release(36) { minorApiLevel = 1 }
     }
 
     defaultConfig {
-        applicationId  = "com.openlauncher.app"
+        applicationId  = "com.hoopoe.launcher"
         minSdk         = 21
         targetSdk      = 36
         versionCode    = 6
