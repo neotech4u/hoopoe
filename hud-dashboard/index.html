@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hoopoe Car Infotainment Launcher — Next-Gen HUD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       HOOPOE AUTOMOTIVE DESIGN SYSTEM (OLED DARK / 60FPS HUD)
+       ========================================================================== */
+    :root {
+      --bg-canvas: #07090E;
+      --card-bg: rgba(15, 20, 31, 0.78);
+      --card-border: #243048;
+      --card-border-glow: rgba(0, 229, 255, 0.25);
+      --card-radius: 16px;
+
+      /* Active Telemetry Theme Tokens */
+      --cyan: #00E5FF;
+      --cyan-glow: rgba(0, 229, 255, 0.35);
+      --amber: #FF9100;
+      --amber-glow: rgba(255, 145, 0, 0.4);
+      --red: #FF1744;
+      --green: #00E676;
+      --purple: #B388FF;
+      --slate: #64748B;
+      --slate-light: #94A3B8;
+      --text-primary: #F8FAFC;
+      --text-muted: #64748B;
+
+      /* Dynamic Accent controlled by Drive Mode */
+      --accent: var(--cyan);
+      --accent-glow: var(--cyan-glow);
+
+      /* Typography */
+      --font-display: 'Orbitron', 'Rajdhani', sans-serif;
+      --font-ui: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-metrics: 'Rajdhani', monospace, sans-serif;
+
+      /* Touch Ergonomics (NHTSA >= 64px standard) */
+      --touch-min: 64px;
+      --touch-btn-pad: 14px 22px;
+    }
+
+    /* High-contrast Daytime Solar Mode */
+    body.day-mode {
+      --bg-canvas: #E2E8F0;
+      --card-bg: rgba(255, 255, 255, 0.88);
+      --card-border: #CBD5E1;
+      --card-border-glow: rgba(0, 119, 182, 0.3);
+      --text-primary: #0F172A;
+      --text-muted: #475569;
+      --slate: #475569;
+      --slate-light: #334155;
+      --cyan: #0284C7;
+      --cyan-glow: rgba(2, 132, 199, 0.3);
+      --accent: #0284C7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      font-size: 15px;
+      line-height: 1.4;
+      transition: background-color 0.4s ease, color 0.4s ease;
+    }
+
+    /* Ambient Subtle Grid Pattern Overlay */
+    body::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: 
+        radial-gradient(circle at 50% 10%, rgba(0, 229, 255, 0.05) 0%, transparent 60%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 40px 40px, 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* App Shell Container (Targeted for 16:9 / 21:9 Widescreens) */
+    #hud-app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 12px 18px 14px 18px;
+      gap: 12px;
+      z-index: 1;
+    }
+
+    /* ==========================================================================
+       SHARED GLASS PANEL COMPONENT
+       ========================================================================== */
+    .glass-panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--card-radius);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .glass-panel:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    /* ==========================================================================
+       TOP STATUS RAIL
+       ========================================================================== */
+    .status-rail {
+      height: 52px;
+      min-height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-radius: 14px;
+      z-index: 10;
+    }
+
+    .status-left, .status-center, .status-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+
+    .brand-icon {
+      width: 24px;
+      height: 24px;
+      filter: drop-shadow(0 0 6px var(--accent));
+      transition: filter 0.3s ease;
+    }
+
+    .car-badge {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    /* Drive Profile Pills */
+    .drive-modes {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 2px;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .mode-btn.active {
+      color: #07090E;
+      background: var(--accent);
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+
+    /* Turn Signals */
+    .turn-signals {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .blinker {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid transparent;
+      color: var(--slate);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .blinker.active {
+      color: var(--green);
+      background: rgba(0, 230, 118, 0.15);
+      border-color: var(--green);
+      animation: blink 0.75s infinite steps(1, start);
+    }
+
+    .blinker.hazard.active {
+      color: var(--amber);
+      background: rgba(255, 145, 0, 0.15);
+      border-color: var(--amber);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px currentColor); }
+      50% { opacity: 0.15; filter: none; }
+    }
+
+    /* Status Items Right */
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--slate-light);
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    .live-clock {
+      font-family: var(--font-metrics);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+      min-width: 80px;
+      text-align: right;
+    }
+
+    /* ==========================================================================
+       PRIMARY 3-ZONE DASHBOARD GRID
+       ========================================================================== */
+    .dashboard-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 380px 1fr 420px;
+      gap: 14px;
+      min-height: 0;
+    }
+
+    @media (max-width: 1400px) {
+      .dashboard-grid {
+        grid-template-columns: 340px 1fr 360px;
+      }
+    }
+
+    /* ==========================================================================
+       ZONE 1: LEFT DRIVER TELEMETRY
+       ========================================================================== */
+    .zone-telemetry {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .speed-cluster {
+      flex: 1.4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 16px;
+    }
+
+    /* Radial Gauge Ring */
+    .gauge-wrapper {
+      position: relative;
+      width: 250px;
+      height: 250px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gauge-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .gauge-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.08);
+      stroke-width: 12;
+      stroke-linecap: round;
+    }
+
+    .gauge-progress {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-dasharray: 691;
+      stroke-dashoffset: 450;
+      filter: drop-shadow(0 0 10px var(--accent));
+      transition: stroke-dashoffset 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), stroke 0.3s ease;
+    }
+
+    .gauge-center-content {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .speed-display {
+      font-family: var(--font-metrics);
+      font-size: 80px;
+      font-weight: 700;
+      line-height: 0.9;
+      color: var(--text-primary);
+      text-shadow: 0 0 20px var(--accent-glow);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .speed-unit {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent);
+      margin-top: 4px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .speed-unit:hover {
+      text-decoration: underline;
+    }
+
+    .gear-selector {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--card-border);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    .gear-item {
+      font-family: var(--font-metrics);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-muted);
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .gear-item.active {
+      color: #07090E;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
+    /* Telemetry Sub-Cards (Energy, Odometer) */
+    .telemetry-row {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-tile {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-value {
+      font-family: var(--font-metrics);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 4px 0;
+    }
+
+    .stat-sub {
+      font-size: 12px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      border-radius: 3px;
+      width: 84%;
+      box-shadow: 0 0 8px var(--accent);
+      transition: width 0.3s ease;
+    }
+
+    /* ==========================================================================
+       ZONE 2: CENTER DYNAMIC VISUALIZER & NAVIGATION MAP
+       ========================================================================== */
+    .zone-visualizer {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 60fps Neon Canvas Road */
+    #nav-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* HUD Overlay over Canvas */
+    .nav-overlay {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+      pointer-events: none;
+    }
+
+    /* Turn-by-Turn Guidance Banner */
+    .nav-banner {
+      pointer-events: auto;
+      background: rgba(15, 20, 31, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      max-width: 520px;
+    }
+
+    .maneuver-icon-box {
+      width: 50px;
+      height: 50px;
+      min-width: 50px;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .nav-details {
+      flex: 1;
+    }
+
+    .nav-distance {
+      font-family: var(--font-metrics);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+    }
+
+    .nav-street {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nav-subtext {
+      font-size: 12px;
+      color: var(--slate-light);
+    }
+
+    .speed-limit-badge {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      border: 4px solid #FF1744;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #1E293B;
+      font-family: var(--font-metrics);
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: 0 0 12px rgba(255, 23, 68, 0.4);
+    }
+
+    /* ADAS Pilot Pill Overlay */
+    .adas-pill-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .adas-pill {
+      background: rgba(15, 20, 31, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--card-border);
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--slate-light);
+    }
+
+    .adas-pill.engaged {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .pulse-ring {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    /* ==========================================================================
+       ZONE 3: RIGHT GLANCEABLE MODULAR CARDS
+       ========================================================================== */
+    .zone-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+    }
+
+    /* 1. Media Player Card */
+    .media-card {
+      flex: 1.25;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .media-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .album-art-wrap {
+      width: 64px;
+      height: 64px;
+      min-width: 64px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .album-art-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .media-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .track-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .artist-name {
+      font-size: 13px;
+      color: var(--slate-light);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .source-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      background: rgba(0, 229, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+
+    /* Real-Time Audio Visualizer Canvas */
+    .audio-viz-canvas {
+      width: 100%;
+      height: 28px;
+      margin: 8px 0;
+    }
+
+    .scrub-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-metrics);
+      font-size: 12px;
+      color: var(--slate);
+    }
+
+    .scrub-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .scrub-fill {
+      width: 45%;
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      box-shadow: 0 0 6px var(--accent);
+    }
+
+    /* Tactile Media Controls (>= 64px Touch Targets) */
+    .media-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 6px;
+    }
+
+    .ctrl-btn {
+      width: 52px;
+      height: 52px;
+      min-width: 52px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .ctrl-btn:active {
+      transform: scale(0.92);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .ctrl-btn.play-btn {
+      width: 64px;
+      height: 64px;
+      min-width: 64px;
+      background: var(--accent);
+      color: #07090E;
+      border-color: var(--accent);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .ctrl-btn.play-btn:active {
+      transform: scale(0.94);
+      box-shadow: 0 0 30px var(--accent);
+    }
+
+    /* 2. Climate & Thermal Mini-Tile */
+    .climate-card {
+      flex: 1.1;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .temp-control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+    }
+
+    .temp-zone {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .temp-stepper-btn {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text-primary);
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .temp-stepper-btn:active {
+      transform: scale(0.9);
+      background: var(--accent);
+      color: #07090E;
+    }
+
+    .temp-display {
+      font-family: var(--font-metrics);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-primary);
+      min-width: 70px;
+      text-align: center;
+    }
+
+    .climate-quick-toggles {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .climate-toggle-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 8px 4px;
+      color: var(--slate-light);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .climate-toggle-btn.active {
+      background: rgba(0, 229, 255, 0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    /* 3. Smart Telemetry / TPMS Tile */
+    .tpms-card {
+      flex: 1;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .tpms-grid {
+      display: grid;
+      grid-template-columns: 1fr 60px 1fr;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .tpms-chassis-svg {
+      width: 50px;
+      height: 75px;
+      margin: 0 auto;
+      filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.3));
+    }
+
+    .tpms-wheel {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .tpms-wheel:hover {
+      border-color: var(--accent);
+    }
+
+    .tpms-wheel.alert {
+      border-color: var(--amber);
+      background: rgba(255, 145, 0, 0.12);
+      animation: alertPulse 1.2s infinite alternate;
+    }
+
+    @keyframes alertPulse {
+      0% { box-shadow: 0 0 6px var(--amber-glow); }
+      100% { box-shadow: 0 0 16px var(--amber); }
+    }
+
+    .tpms-psi {
+      font-family: var(--font-metrics);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .tpms-wheel.alert .tpms-psi {
+      color: var(--amber);
+    }
+
+    .tpms-temp {
+      font-size: 10px;
+      color: var(--slate-light);
+    }
+
+    /* ==========================================================================
+       BOTTOM PERSISTENT QUICK-LAUNCH DOCK
+       ========================================================================== */
+    .bottom-dock {
+      height: 76px;
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-radius: 18px;
+      z-index: 10;
+    }
+
+    .dock-nav-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .dock-btn {
+      width: 64px;
+      height: 60px;
+      min-width: 64px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      color: var(--slate-light);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      position: relative;
+    }
+
+    .dock-btn svg {
+      width: 24px;
+      height: 24px;
+      transition: transform 0.2s ease, stroke 0.2s ease;
+    }
+
+    .dock-btn span {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .dock-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .dock-btn:active {
+      transform: scale(0.92);
+    }
+
+    .dock-btn.active {
+      color: var(--accent);
+      background: rgba(0, 229, 255, 0.08);
+      border-color: rgba(0, 229, 255, 0.25);
+      box-shadow: 0 4px 18px rgba(0, 229, 255, 0.15);
+    }
+
+    .dock-btn.active::after {
+      content: "";
+      position: absolute;
+      bottom: 4px;
+      width: 18px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    /* Center AI Voice Assistant Button */
+    .dock-ai-assistant {
+      position: relative;
+    }
+
+    .ai-voice-trigger {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00E5FF, #7C4DFF);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      color: #07090E;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.4);
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .ai-voice-trigger:hover {
+      transform: scale(1.06);
+      box-shadow: 0 0 35px rgba(0, 229, 255, 0.6);
+    }
+
+    .ai-voice-trigger:active {
+      transform: scale(0.94);
+    }
+
+    .ai-voice-trigger.listening {
+      animation: voicePulse 1.2s infinite;
+    }
+
+    @keyframes voicePulse {
+      0% { box-shadow: 0 0 20px var(--cyan); }
+      50% { box-shadow: 0 0 45px var(--purple), 0 0 20px var(--cyan); }
+      100% { box-shadow: 0 0 20px var(--cyan); }
+    }
+
+    /* Simulator HUD Control Flyout Drawer */
+    .sim-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      padding: 6px 14px;
+      border-radius: 24px;
+    }
+
+    .sim-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sim-slider {
+      -webkit-appearance: none;
+      width: 100px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .sim-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    /* ==========================================================================
+       MODALS: VOICE ASSISTANT & APP GRID DRAWER
+       ========================================================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 9, 14, 0.88);
+      backdrop-filter: blur(20px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.25s ease forwards;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* Voice Assistant Listening Sheet */
+    .voice-sheet {
+      width: 620px;
+      background: var(--card-bg);
+      border: 1px solid var(--accent);
+      border-radius: 24px;
+      padding: 36px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 30px var(--accent-glow);
+    }
+
+    .voice-waves {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      height: 50px;
+    }
+
+    .voice-wave-bar {
+      width: 5px;
+      height: 20px;
+      background: var(--accent);
+      border-radius: 3px;
+      box-shadow: 0 0 8px var(--accent);
+      animation: waveHop 1s ease-in-out infinite alternate;
+    }
+
+    .voice-wave-bar:nth-child(2) { animation-delay: 0.15s; }
+    .voice-wave-bar:nth-child(3) { animation-delay: 0.3s; }
+    .voice-wave-bar:nth-child(4) { animation-delay: 0.45s; }
+    .voice-wave-bar:nth-child(5) { animation-delay: 0.6s; }
+
+    @keyframes waveHop {
+      0% { height: 12px; }
+      100% { height: 48px; }
+    }
+
+    /* Application Drawer Modal */
+    .app-drawer-content {
+      width: 900px;
+      max-width: 90vw;
+      max-height: 85vh;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8);
+    }
+
+    .app-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .app-drawer-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .close-modal-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--card-border);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+      overflow-y: auto;
+      padding: 10px 4px;
+    }
+
+    .app-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 18px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .app-card:hover {
+      background: rgba(0, 229, 255, 0.08);
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+
+    .app-card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #07090E;
+      font-weight: 700;
+      font-size: 20px;
+    }
+
+    .app-card-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="hud-app">
+    <!-- ==========================================================================
+         TOP STATUS RAIL
+         ========================================================================== -->
+    <header class="status-rail glass-panel">
+      <div class="status-left">
+        <div class="brand-pill">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+          <span>HOOPOE</span>
+          <span class="car-badge" id="vehicle-name-badge">DZIRE</span>
+        </div>
+
+        <!-- Drive Profile Switcher -->
+        <div class="drive-modes">
+          <button class="mode-btn" data-mode="eco">ECO</button>
+          <button class="mode-btn active" data-mode="sport">SPORT</button>
+          <button class="mode-btn" data-mode="autonomous">PILOT</button>
+        </div>
+      </div>
+
+      <!-- Turn Signal Blinker Core -->
+      <div class="status-center">
+        <div class="turn-signals">
+          <button class="blinker" id="blinker-left" title="Left Signal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <button class="blinker hazard" id="blinker-hazard" title="Hazard Flasher">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 22,20 2,20"/></svg>
+          </button>
+          <button class="blinker" id="blinker-right" title="Right Signal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="status-right">
+        <!-- Weather & Temp -->
+        <div class="status-item">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+          </svg>
+          <span id="exterior-temp">28°C</span>
+        </div>
+
+        <!-- GPS Lock -->
+        <div class="status-item">
+          <span class="status-dot"></span>
+          <span>GPS 3D (10 Sats)</span>
+        </div>
+
+        <!-- 5G / Connectivity -->
+        <div class="status-item">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 20h20"/><path d="M5 20v-4"/><path d="M9 20v-8"/><path d="M13 20v-12"/><path d="M17 20v-16"/>
+          </svg>
+          <span>5G ULTRA</span>
+        </div>
+
+        <!-- Live Clock -->
+        <div class="live-clock" id="live-clock">22:15:30</div>
+      </div>
+    </header>
+
+    <!-- ==========================================================================
+         PRIMARY 3-ZONE LAYOUT
+         ========================================================================== -->
+    <main class="dashboard-grid">
+      
+      <!-- ZONE 1: DRIVER TELEMETRY -->
+      <section class="zone-telemetry">
+        <div class="glass-panel speed-cluster">
+          <!-- Radial Gauge Cluster -->
+          <div class="gauge-wrapper">
+            <svg class="gauge-svg" viewBox="0 0 260 260">
+              <circle class="gauge-bg" cx="130" cy="130" r="110"></circle>
+              <circle class="gauge-progress" id="speed-gauge-circle" cx="130" cy="130" r="110"></circle>
+            </svg>
+            <div class="gauge-center-content">
+              <div class="speed-display" id="speed-num">0</div>
+              <div class="speed-unit" id="speed-unit-toggle">KM/H</div>
+            </div>
+          </div>
+
+          <!-- Gear Selector P-R-N-D -->
+          <div class="gear-selector">
+            <div class="gear-item" data-gear="P">P</div>
+            <div class="gear-item" data-gear="R">R</div>
+            <div class="gear-item" data-gear="N">N</div>
+            <div class="gear-item active" data-gear="D">D</div>
+          </div>
+        </div>
+
+        <!-- Battery / Range & Efficiency -->
+        <div class="telemetry-row">
+          <div class="glass-panel stat-tile">
+            <div class="stat-label">
+              <span>BATTERY / RANGE</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><rect width="16" height="10" x="2" y="7" rx="2"/><line x1="22" x2="22" y1="11" y2="13"/></svg>
+            </div>
+            <div class="stat-value"><span id="range-km">394</span> <span style="font-size:14px;color:var(--slate-light)">KM</span></div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar-fill" id="battery-fill" style="width: 82%;"></div>
+            </div>
+            <div class="stat-sub" style="margin-top:6px;">82% SoC • Eco Flow</div>
+          </div>
+
+          <div class="glass-panel stat-tile">
+            <div class="stat-label">
+              <span>TRIP METRICS</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-value">142.8 <span style="font-size:14px;color:var(--slate-light)">KM</span></div>
+            <div class="stat-sub" style="color:var(--slate-light);margin-top:auto;">
+              Avg 62 km/h • 1h 48m
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ZONE 2: CENTER DYNAMIC VISUALIZER & NAVIGATION -->
+      <section class="glass-panel zone-visualizer">
+        <!-- 60 FPS HTML5 Canvas Neon Vector Road -->
+        <canvas id="nav-canvas"></canvas>
+
+        <!-- Dynamic HUD Overlay -->
+        <div class="nav-overlay">
+          <!-- Turn-by-Turn Maneuver Prompt -->
+          <div class="nav-banner">
+            <div class="maneuver-icon-box">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+            <div class="nav-details">
+              <div class="nav-distance">IN 250 METERS</div>
+              <div class="nav-street">Turn Right onto Cyber Ring Expressway</div>
+              <div class="nav-subtext">Maintain 2 Rightmost Lanes toward T3 Aerocity</div>
+            </div>
+            <div class="speed-limit-badge">80</div>
+          </div>
+
+          <!-- ADAS / Autopilot Status Pill -->
+          <div class="adas-pill-row">
+            <div class="adas-pill engaged">
+              <span class="pulse-ring"></span>
+              <span>LANE PILOT ACTIVE</span>
+            </div>
+            <div class="adas-pill engaged">
+              <span class="pulse-ring"></span>
+              <span>ACC 80 KM/H</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ZONE 3: RIGHT GLANCEABLE MODULAR CARDS -->
+      <section class="zone-cards">
+        
+        <!-- Card 1: Media Player with Audio Spectrum -->
+        <div class="glass-panel media-card">
+          <div class="media-header">
+            <div class="album-art-wrap">
+              <img src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=300&auto=format&fit=crop&q=80" alt="Album Art" id="album-cover">
+            </div>
+            <div class="media-info">
+              <div class="track-title" id="track-name">Midnight Neon City</div>
+              <div class="artist-name" id="artist-name">Hoopoe Soundwave • Synthwave</div>
+              <div class="source-badge">Spotify Connected</div>
+            </div>
+          </div>
+
+          <!-- Canvas Audio Visualizer -->
+          <canvas class="audio-viz-canvas" id="audio-viz"></canvas>
+
+          <!-- Scrub Bar -->
+          <div class="scrub-row">
+            <span id="media-time-current">02:14</span>
+            <div class="scrub-bar">
+              <div class="scrub-fill" id="media-progress"></div>
+            </div>
+            <span>03:48</span>
+          </div>
+
+          <!-- Controls (Min 64px touch targets) -->
+          <div class="media-controls">
+            <button class="ctrl-btn" id="media-prev" title="Previous Track">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></svg>
+            </button>
+            <button class="ctrl-btn play-btn" id="media-play" title="Play/Pause">
+              <svg id="play-icon" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+            <button class="ctrl-btn" id="media-next" title="Next Track">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Card 2: Cabin Climate Control Stepper -->
+        <div class="glass-panel climate-card">
+          <div class="card-title-row">
+            <span>CABIN CLIMATE & THERMALS</span>
+            <span style="color:var(--accent);">DUAL ZONE A/C</span>
+          </div>
+
+          <div class="temp-control-row">
+            <!-- Driver Temp -->
+            <div class="temp-zone">
+              <button class="temp-stepper-btn" id="temp-driver-down">-</button>
+              <div class="temp-display" id="temp-driver-val">21.5°</div>
+              <button class="temp-stepper-btn" id="temp-driver-up">+</button>
+            </div>
+
+            <!-- Auto Fan Status Icon -->
+            <div style="display:flex;flex-direction:column;align-items:center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2" style="animation: spin 3s linear infinite;">
+                <circle cx="12" cy="12" r="10"/><path d="M12 2a4 4 0 0 0 4 4v6a4 4 0 0 0-4 4"/><path d="M12 2a4 4 0 0 1-4 4v6a4 4 0 0 1 4 4"/>
+              </svg>
+              <span style="font-size:10px;font-weight:700;color:var(--slate-light);margin-top:2px;">FAN 3</span>
+            </div>
+
+            <!-- Passenger Temp -->
+            <div class="temp-zone">
+              <button class="temp-stepper-btn" id="temp-pass-down">-</button>
+              <div class="temp-display" id="temp-pass-val">22.0°</div>
+              <button class="temp-stepper-btn" id="temp-pass-up">+</button>
+            </div>
+          </div>
+
+          <div class="climate-quick-toggles">
+            <button class="climate-toggle-btn active" id="btn-ac-auto">A/C AUTO</button>
+            <button class="climate-toggle-btn active" id="btn-defrost-front">FRONT DEF</button>
+            <button class="climate-toggle-btn" id="btn-defrost-rear">REAR DEF</button>
+            <button class="climate-toggle-btn active" id="btn-seat-heat">SEAT ♨</button>
+          </div>
+        </div>
+
+        <!-- Card 3: Smart Telemetry & TPMS (Tire Pressure Monitoring) -->
+        <div class="glass-panel tpms-card">
+          <div class="card-title-row">
+            <span>TIRE PRESSURE (TPMS)</span>
+            <span style="color:var(--green)">OPTIMAL</span>
+          </div>
+
+          <div class="tpms-grid">
+            <!-- Front Left -->
+            <div class="tpms-wheel" id="wheel-fl">
+              <div class="tpms-psi">33 <span style="font-size:11px">PSI</span></div>
+              <div class="tpms-temp">32°C • FL</div>
+            </div>
+
+            <!-- Center Chassis Silhouette SVG -->
+            <svg class="tpms-chassis-svg" viewBox="0 0 60 90" fill="none">
+              <rect x="12" y="10" width="36" height="70" rx="10" stroke="var(--card-border)" stroke-width="2"/>
+              <line x1="5" y1="20" x2="12" y2="20" stroke="var(--accent)" stroke-width="3"/>
+              <line x1="48" y1="20" x2="55" y2="20" stroke="var(--accent)" stroke-width="3"/>
+              <line x1="5" y1="70" x2="12" y2="70" stroke="var(--accent)" stroke-width="3"/>
+              <line x1="48" y1="70" x2="55" y2="70" stroke="var(--accent)" stroke-width="3"/>
+              <circle cx="30" cy="45" r="4" fill="var(--accent)"/>
+            </svg>
+
+            <!-- Front Right -->
+            <div class="tpms-wheel" id="wheel-fr">
+              <div class="tpms-psi">33 <span style="font-size:11px">PSI</span></div>
+              <div class="tpms-temp">33°C • FR</div>
+            </div>
+
+            <!-- Rear Left -->
+            <div class="tpms-wheel" id="wheel-rl">
+              <div class="tpms-psi">32 <span style="font-size:11px">PSI</span></div>
+              <div class="tpms-temp">31°C • RL</div>
+            </div>
+
+            <div></div>
+
+            <!-- Rear Right (Interactive test warning) -->
+            <div class="tpms-wheel" id="wheel-rr" title="Click to simulate TPMS alert">
+              <div class="tpms-psi">32 <span style="font-size:11px">PSI</span></div>
+              <div class="tpms-temp">31°C • RR</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- ==========================================================================
+         BOTTOM PERSISTENT LAUNCHER DOCK
+         ========================================================================== -->
+    <footer class="bottom-dock glass-panel">
+      <!-- Left Launcher Icons -->
+      <div class="dock-nav-group">
+        <button class="dock-btn active" id="dock-home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Home</span>
+        </button>
+        <button class="dock-btn" id="dock-nav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          <span>Navigation</span>
+        </button>
+        <button class="dock-btn" id="dock-media">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+          <span>Music</span>
+        </button>
+      </div>
+
+      <!-- Center Voice Assistant Button -->
+      <div class="dock-ai-assistant">
+        <button class="ai-voice-trigger" id="voice-trigger" title="Hoopoe Voice Assistant">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#07090E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Right Launcher Icons + Live Simulator Controls -->
+      <div class="dock-nav-group">
+        <button class="dock-btn" id="dock-phone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <span>Phone</span>
+        </button>
+
+        <button class="dock-btn" id="dock-apps">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+          <span>All Apps</span>
+        </button>
+
+        <!-- Live Throttle & Day/Night Simulator Controls -->
+        <div class="sim-bar">
+          <span class="sim-label">SPEED SIM</span>
+          <input type="range" class="sim-slider" id="sim-speed-slider" min="0" max="180" value="65">
+          <button class="mode-btn" id="day-night-toggle" style="padding:4px 8px;font-size:10px;">DAY/NIGHT</button>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 1: VOICE ASSISTANT LISTENING OVERLAY
+       ========================================================================== -->
+  <div class="modal-overlay" id="voice-modal">
+    <div class="voice-sheet">
+      <div style="font-size:12px;font-weight:700;letter-spacing:2px;color:var(--accent);">HOOPOE INTELLIGENT ASSISTANT</div>
+      <div class="voice-waves">
+        <div class="voice-wave-bar"></div>
+        <div class="voice-wave-bar"></div>
+        <div class="voice-wave-bar"></div>
+        <div class="voice-wave-bar"></div>
+        <div class="voice-wave-bar"></div>
+      </div>
+      <h2 style="font-size:24px;font-weight:700;">Listening for command...</h2>
+      <p style="font-size:14px;color:var(--slate-light);">Try saying: <em>"Set temperature to 21 degrees"</em> or <em>"Navigate to Home"</em></p>
+      <button class="ctrl-btn play-btn" id="close-voice-btn" style="width:auto;height:44px;border-radius:22px;padding:0 24px;font-size:13px;font-weight:700;">
+        DONE / CANCEL
+      </button>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL 2: APPLICATION DRAWER
+       ========================================================================== -->
+  <div class="modal-overlay" id="apps-modal">
+    <div class="app-drawer-content">
+      <div class="app-drawer-header">
+        <div class="app-drawer-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+          <span>Infotainment Applications</span>
+        </div>
+        <button class="close-modal-btn" id="close-apps-btn">✕</button>
+      </div>
+
+      <div class="app-grid">
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #00E5FF;">📻</div>
+          <div class="app-card-name">AM/FM Radio</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #1DB954;">♫</div>
+          <div class="app-card-name">Spotify</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #4285F4;">🗺️</div>
+          <div class="app-card-name">Google Maps</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #FF0000;">▶</div>
+          <div class="app-card-name">YouTube Music</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #00E676;">📞</div>
+          <div class="app-card-name">Bluetooth Phone</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #FF9100;">📷</div>
+          <div class="app-card-name">Rear Camera</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #7C4DFF;">🚗</div>
+          <div class="app-card-name">CarPlay / AA</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #0284C7;">⏱️</div>
+          <div class="app-card-name">0-100 Timer</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #E11D48;">⚡</div>
+          <div class="app-card-name">ECU Vitals</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #10B981;">🛞</div>
+          <div class="app-card-name">TPMS Sensors</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #F59E0B;">🌤️</div>
+          <div class="app-card-name">Weather Live</div>
+        </div>
+        <div class="app-card">
+          <div class="app-card-icon" style="background: #64748B;">⚙️</div>
+          <div class="app-card-name">System Settings</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       AUTOMOTIVE SCRIPT LOGIC (60FPS CANVAS & INTERACTION ENGINE)
+       ========================================================================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ==========================================
+      // STATE MANAGEMENT
+      // ==========================================
+      const state = {
+        speed: 65,
+        targetSpeed: 65,
+        unit: 'KM/H',
+        gear: 'D',
+        driveMode: 'sport',
+        tempDriver: 21.5,
+        tempPass: 22.0,
+        isPlaying: true,
+        isBlinkingLeft: false,
+        isBlinkingRight: false,
+        isHazard: false,
+        isDayMode: false,
+        battery: 82,
+        range: 394
+      };
+
+      // ==========================================
+      // DIGITAL CLOCK ENGINE
+      // ==========================================
+      const clockEl = document.getElementById('live-clock');
+      function updateClock() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        clockEl.textContent = `${hh}:${mm}:${ss}`;
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+
+      // ==========================================
+      // SPEEDOMETER & GAUGE CLUSTER LOGIC
+      // ==========================================
+      const speedNumEl = document.getElementById('speed-num');
+      const speedGaugeEl = document.getElementById('speed-gauge-circle');
+      const speedSlider = document.getElementById('sim-speed-slider');
+      const maxSpeed = 220;
+      const circumference = 2 * Math.PI * 110; // ~691.15
+
+      function renderSpeed(val) {
+        speedNumEl.textContent = Math.round(val);
+        // Map 0 -> maxSpeed to stroke-dashoffset (from 691 to ~200 for 270 deg arc)
+        const progress = Math.min(val / maxSpeed, 1);
+        const offset = circumference - (progress * (circumference * 0.75));
+        speedGaugeEl.style.strokeDashoffset = offset;
+      }
+
+      speedSlider.addEventListener('input', (e) => {
+        state.targetSpeed = parseFloat(e.target.value);
+      });
+
+      // Speed Unit Toggle
+      const unitToggle = document.getElementById('speed-unit-toggle');
+      unitToggle.addEventListener('click', () => {
+        state.unit = state.unit === 'KM/H' ? 'MPH' : 'KM/H';
+        unitToggle.textContent = state.unit;
+      });
+
+      // Gear Selector
+      const gearItems = document.querySelectorAll('.gear-item');
+      gearItems.forEach(item => {
+        item.addEventListener('click', () => {
+          gearItems.forEach(g => g.classList.remove('active'));
+          item.classList.add('active');
+          state.gear = item.dataset.gear;
+          if (state.gear === 'P') state.targetSpeed = 0;
+        });
+      });
+
+      // Drive Mode Selector
+      const modeButtons = document.querySelectorAll('.mode-btn[data-mode]');
+      modeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          modeButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.driveMode = btn.dataset.mode;
+          applyDriveMode(state.driveMode);
+        });
+      });
+
+      function applyDriveMode(mode) {
+        const root = document.documentElement;
+        if (mode === 'eco') {
+          root.style.setProperty('--accent', '#00E676');
+          root.style.setProperty('--accent-glow', 'rgba(0, 230, 118, 0.4)');
+        } else if (mode === 'sport') {
+          root.style.setProperty('--accent', '#00E5FF');
+          root.style.setProperty('--accent-glow', 'rgba(0, 229, 255, 0.4)');
+        } else if (mode === 'autonomous') {
+          root.style.setProperty('--accent', '#B388FF');
+          root.style.setProperty('--accent-glow', 'rgba(179, 136, 255, 0.4)');
+        }
+      }
+
+      // ==========================================
+      // TURN SIGNALS & BLINKERS
+      // ==========================================
+      const blinkLeft = document.getElementById('blinker-left');
+      const blinkRight = document.getElementById('blinker-right');
+      const blinkHazard = document.getElementById('blinker-hazard');
+
+      blinkLeft.addEventListener('click', () => {
+        state.isBlinkingLeft = !state.isBlinkingLeft;
+        state.isBlinkingRight = false;
+        blinkRight.classList.remove('active');
+        blinkLeft.classList.toggle('active', state.isBlinkingLeft);
+      });
+
+      blinkRight.addEventListener('click', () => {
+        state.isBlinkingRight = !state.isBlinkingRight;
+        state.isBlinkingLeft = false;
+        blinkLeft.classList.remove('active');
+        blinkRight.classList.toggle('active', state.isBlinkingRight);
+      });
+
+      blinkHazard.addEventListener('click', () => {
+        state.isHazard = !state.isHazard;
+        blinkHazard.classList.toggle('active', state.isHazard);
+        blinkLeft.classList.toggle('active', state.isHazard);
+        blinkRight.classList.toggle('active', state.isHazard);
+      });
+
+      // ==========================================
+      // CLIMATE CONTROLS (+ / - STEPPERS)
+      // ==========================================
+      const tempDriverVal = document.getElementById('temp-driver-val');
+      const tempPassVal = document.getElementById('temp-pass-val');
+
+      document.getElementById('temp-driver-up').addEventListener('click', () => {
+        state.tempDriver = Math.min(29.0, +(state.tempDriver + 0.5).toFixed(1));
+        tempDriverVal.textContent = `${state.tempDriver}°`;
+      });
+      document.getElementById('temp-driver-down').addEventListener('click', () => {
+        state.tempDriver = Math.max(16.0, +(state.tempDriver - 0.5).toFixed(1));
+        tempDriverVal.textContent = `${state.tempDriver}°`;
+      });
+
+      document.getElementById('temp-pass-up').addEventListener('click', () => {
+        state.tempPass = Math.min(29.0, +(state.tempPass + 0.5).toFixed(1));
+        tempPassVal.textContent = `${state.tempPass}°`;
+      });
+      document.getElementById('temp-pass-down').addEventListener('click', () => {
+        state.tempPass = Math.max(16.0, +(state.tempPass - 0.5).toFixed(1));
+        tempPassVal.textContent = `${state.tempPass}°`;
+      });
+
+      // Climate Toggles
+      document.querySelectorAll('.climate-toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => btn.classList.toggle('active'));
+      });
+
+      // TPMS Interactive Wheel Warning Demo
+      const wheelRR = document.getElementById('wheel-rr');
+      wheelRR.addEventListener('click', () => {
+        wheelRR.classList.toggle('alert');
+        const psi = wheelRR.querySelector('.tpms-psi');
+        if (wheelRR.classList.contains('alert')) {
+          psi.innerHTML = '24 <span style="font-size:11px">LOW</span>';
+        } else {
+          psi.innerHTML = '32 <span style="font-size:11px">PSI</span>';
+        }
+      });
+
+      // ==========================================
+      // MEDIA PLAYER & AUDIO SPECTRUM VISUALIZER
+      // ==========================================
+      const playBtn = document.getElementById('media-play');
+      const playIcon = document.getElementById('play-icon');
+      const audioCanvas = document.getElementById('audio-viz');
+      const audioCtx = audioCanvas.getContext('2d');
+
+      playBtn.addEventListener('click', () => {
+        state.isPlaying = !state.isPlaying;
+        if (state.isPlaying) {
+          playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+        } else {
+          playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+        }
+      });
+      // Start in pause icon state since isPlaying=true
+      playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+
+      // 60fps Real-Time Audio Bar Visualizer
+      function renderAudioVisualizer() {
+        const w = audioCanvas.width = audioCanvas.offsetWidth;
+        const h = audioCanvas.height = audioCanvas.offsetHeight;
+        audioCtx.clearRect(0, 0, w, h);
+
+        const barCount = 28;
+        const barWidth = (w / barCount) - 3;
+        const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#00E5FF';
+
+        for (let i = 0; i < barCount; i++) {
+          let height = 3;
+          if (state.isPlaying) {
+            // Simulated animated audio spectrum frequencies
+            const freq = Math.sin(Date.now() * 0.005 + i * 0.4) * Math.cos(Date.now() * 0.003 - i * 0.2);
+            height = Math.max(3, Math.abs(freq) * (h * 0.95));
+          }
+          const x = i * (barWidth + 3);
+          const y = h - height;
+
+          audioCtx.fillStyle = accentColor;
+          audioCtx.shadowColor = accentColor;
+          audioCtx.shadowBlur = state.isPlaying ? 8 : 0;
+          audioCtx.fillRect(x, y, barWidth, height);
+        }
+        audioCtx.shadowBlur = 0;
+      }
+
+      // ==========================================
+      // CENTER ZONE: 60FPS VECTOR MAP CANVAS
+      // ==========================================
+      const navCanvas = document.getElementById('nav-canvas');
+      const navCtx = navCanvas.getContext('2d');
+      let roadOffset = 0;
+
+      function resizeNavCanvas() {
+        navCanvas.width = navCanvas.offsetWidth;
+        navCanvas.height = navCanvas.offsetHeight;
+      }
+      window.addEventListener('resize', resizeNavCanvas);
+      resizeNavCanvas();
+
+      function renderNavCanvas() {
+        const w = navCanvas.width;
+        const h = navCanvas.height;
+        navCtx.clearRect(0, 0, w, h);
+
+        // Horizon line
+        const horizon = h * 0.38;
+        const centerX = w * 0.5;
+
+        // Perspective Road Lines
+        roadOffset = (roadOffset + (state.speed * 0.08)) % 40;
+
+        // Ground Grid
+        navCtx.strokeStyle = 'rgba(0, 229, 255, 0.04)';
+        navCtx.lineWidth = 1;
+        for (let y = horizon; y < h; y += 18) {
+          navCtx.beginPath();
+          navCtx.moveTo(0, y);
+          navCtx.lineTo(w, y);
+          navCtx.stroke();
+        }
+
+        // Road Outer Edges (Perspective Trapezoid)
+        const roadTopWidth = 80;
+        const roadBottomWidth = w * 0.72;
+
+        const leftTopX = centerX - roadTopWidth;
+        const rightTopX = centerX + roadTopWidth;
+        const leftBottomX = centerX - roadBottomWidth;
+        const rightBottomX = centerX + roadBottomWidth;
+
+        // Road Surface fill
+        const roadGrad = navCtx.createLinearGradient(0, horizon, 0, h);
+        roadGrad.addColorStop(0, 'rgba(15, 20, 31, 0.4)');
+        roadGrad.addColorStop(1, 'rgba(7, 9, 14, 0.9)');
+        navCtx.fillStyle = roadGrad;
+        navCtx.beginPath();
+        navCtx.moveTo(leftTopX, horizon);
+        navCtx.lineTo(rightTopX, horizon);
+        navCtx.lineTo(rightBottomX, h);
+        navCtx.lineTo(leftBottomX, h);
+        navCtx.closePath();
+        navCtx.fill();
+
+        // Neon Curving Guidance Path
+        const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#00E5FF';
+        navCtx.strokeStyle = accentColor;
+        navCtx.lineWidth = 3;
+        navCtx.shadowColor = accentColor;
+        navCtx.shadowBlur = 12;
+
+        // Glowing Road Borders
+        navCtx.beginPath();
+        navCtx.moveTo(leftTopX, horizon);
+        navCtx.lineTo(leftBottomX, h);
+        navCtx.stroke();
+
+        navCtx.beginPath();
+        navCtx.moveTo(rightTopX, horizon);
+        navCtx.lineTo(rightBottomX, h);
+        navCtx.stroke();
+
+        // Animated Center Dash Lines (Lanes)
+        navCtx.lineWidth = 2;
+        navCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        navCtx.shadowBlur = 0;
+
+        const dashSteps = 14;
+        for (let i = 0; i < dashSteps; i++) {
+          const t = ((i * 30 + roadOffset) % 400) / 400;
+          if (t <= 0.05) continue;
+          const y1 = horizon + Math.pow(t, 2) * (h - horizon);
+          const y2 = horizon + Math.pow(Math.min(1, t + 0.04), 2) * (h - horizon);
+          const x1 = centerX;
+          const x2 = centerX;
+
+          navCtx.beginPath();
+          navCtx.moveTo(x1, y1);
+          navCtx.lineTo(x2, y2);
+          navCtx.stroke();
+        }
+
+        // Vehicle Avatar Silhouette at Bottom of Center View
+        const carY = h - 68;
+        const carWidth = 54;
+        const carHeight = 84;
+
+        // Autonomous Radar Wave Arc
+        navCtx.strokeStyle = accentColor;
+        navCtx.shadowColor = accentColor;
+        navCtx.shadowBlur = 10;
+        navCtx.lineWidth = 1.5;
+        const pulse = (Date.now() * 0.003) % Math.PI;
+        navCtx.beginPath();
+        navCtx.arc(centerX, carY, 40 + Math.sin(pulse) * 30, -Math.PI * 0.8, -Math.PI * 0.2);
+        navCtx.stroke();
+        navCtx.shadowBlur = 0;
+
+        // Vehicle body
+        navCtx.fillStyle = 'rgba(15, 20, 31, 0.95)';
+        navCtx.strokeStyle = accentColor;
+        navCtx.lineWidth = 2;
+        navCtx.beginPath();
+        navCtx.roundRect(centerX - carWidth / 2, carY, carWidth, carHeight, 14);
+        navCtx.fill();
+        navCtx.stroke();
+
+        // Headlights / Tail light neon glow
+        navCtx.fillStyle = '#00E5FF';
+        navCtx.shadowColor = '#00E5FF';
+        navCtx.shadowBlur = 10;
+        navCtx.fillRect(centerX - carWidth / 2 + 6, carY + 4, 10, 4);
+        navCtx.fillRect(centerX + carWidth / 2 - 16, carY + 4, 10, 4);
+        navCtx.shadowBlur = 0;
+      }
+
+      // ==========================================
+      // MAIN 60FPS ANIMATION LOOP
+      // ==========================================
+      function frameLoop() {
+        // Smooth speed easing
+        state.speed += (state.targetSpeed - state.speed) * 0.08;
+        renderSpeed(state.speed);
+
+        // Render Canvases
+        renderNavCanvas();
+        renderAudioVisualizer();
+
+        requestAnimationFrame(frameLoop);
+      }
+      requestAnimationFrame(frameLoop);
+
+      // ==========================================
+      // MODAL CONTROLS & INTERACTIVE SHEETS
+      // ==========================================
+      const voiceModal = document.getElementById('voice-modal');
+      const voiceTrigger = document.getElementById('voice-trigger');
+      const closeVoiceBtn = document.getElementById('close-voice-btn');
+
+      voiceTrigger.addEventListener('click', () => {
+        voiceModal.classList.add('open');
+        voiceTrigger.classList.add('listening');
+      });
+
+      closeVoiceBtn.addEventListener('click', () => {
+        voiceModal.classList.remove('open');
+        voiceTrigger.classList.remove('listening');
+      });
+
+      const appsModal = document.getElementById('apps-modal');
+      const dockAppsBtn = document.getElementById('dock-apps');
+      const closeAppsBtn = document.getElementById('close-apps-btn');
+
+      dockAppsBtn.addEventListener('click', () => appsModal.classList.add('open'));
+      closeAppsBtn.addEventListener('click', () => appsModal.classList.remove('open'));
+
+      // Day / Night Switcher
+      const dayNightToggle = document.getElementById('day-night-toggle');
+      dayNightToggle.addEventListener('click', () => {
+        state.isDayMode = !state.isDayMode;
+        document.body.classList.toggle('day-mode', state.isDayMode);
+      });
+
+      // Bottom Dock Navigation item active selection
+      const dockBtns = document.querySelectorAll('.dock-btn');
+      dockBtns.forEach(btn => {
+        if (btn.id !== 'dock-apps') {
+          btn.addEventListener('click', () => {
+            dockBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+          });
+        }
+      });
+
+    })();
+  </script>
+</body>
+</html>
