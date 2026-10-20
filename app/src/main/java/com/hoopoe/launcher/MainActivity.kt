@@ -31,6 +31,10 @@ import com.hoopoe.launcher.viewmodel.LauncherViewModel
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        var hasPlayedLogonSession = false
+    }
+
     private val vm: LauncherViewModel by viewModels()
 
     private val locationPermissions = registerForActivityResult(
@@ -77,6 +81,10 @@ class MainActivity : ComponentActivity() {
             val isDayMode = if (settings.dayNightMode == DayNightMode.SYSTEM) !systemIsDark else isDayModeVM
             val pickerSlot      by vm.shortcutPickerSlot.collectAsStateWithLifecycle()
             val appPickerTarget by vm.appPickerTarget.collectAsStateWithLifecycle()
+            val isPreviewingLogon by vm.previewingLogon.collectAsStateWithLifecycle()
+            var showLogon by remember {
+                mutableStateOf(!hasPlayedLogonSession && settings.playLogonAnimation)
+            }
 
             val accent         = Color(settings.accentColor)
             val bg             = if (settings.useCustomBackgroundColor) {
@@ -103,7 +111,15 @@ class MainActivity : ComponentActivity() {
                     fontScale = baseDensity.fontScale
                 )
             ) {
-                if (!settingsLoaded) {
+                if (showLogon || isPreviewingLogon) {
+                    LogonScreen(
+                        onFinished = {
+                            hasPlayedLogonSession = true
+                            showLogon = false
+                            vm.dismissLogonPreview()
+                        }
+                    )
+                } else if (!settingsLoaded) {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                 } else OpenLauncherTheme(
                     accent     = accent,
@@ -251,7 +267,8 @@ class MainActivity : ComponentActivity() {
                                         settings = settings,
                                         accent   = accent,
                                         onUpdate = { block -> vm.updateSettings(block) },
-                                        onReset  = { vm.resetSettings() }
+                                        onReset  = { vm.resetSettings() },
+                                        onPreviewLogon = { vm.previewLogonAnimation() }
                                     )
                                 }
                             }

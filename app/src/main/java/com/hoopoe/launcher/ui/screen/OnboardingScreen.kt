@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -122,15 +124,14 @@ fun OnboardingScreen(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(44.dp)
+                    Image(
+                        painter = painterResource(com.hoopoe.launcher.R.drawable.hoopoe_logo),
+                        contentDescription = "Hoopoe Logo",
+                        modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp))
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "HOPOE LAUNCHER",
+                        text = "HOOPOE LAUNCHER",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,

@@ -47,6 +47,7 @@ fun SettingsScreen(
     accent: Color,
     onUpdate: (AppSettings.() -> AppSettings) -> Unit,
     onReset: () -> Unit,
+    onPreviewLogon: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current

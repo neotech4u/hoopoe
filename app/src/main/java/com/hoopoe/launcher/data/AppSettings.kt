@@ -103,7 +103,8 @@ data class AppSettings(
     val vitalsAsBars: Boolean = false,
     val speedometerDigitalOnly: Boolean = false,
     val gradientDirection: GradientDirection = GradientDirection.DIAGONAL,
-    val useCustomBackgroundColor: Boolean = false
+    val useCustomBackgroundColor: Boolean = false,
+    val playLogonAnimation: Boolean = true
 )
 
 fun defaultShortcuts() = listOf(
