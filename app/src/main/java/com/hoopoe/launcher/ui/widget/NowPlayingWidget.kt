@@ -90,7 +90,7 @@ fun NowPlayingWidget(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(16.dp))
     ) {
         // 1. CONDITIONAL VIEW TOGGLE
         if (selectedSource == "FM/AM Radio") {
@@ -681,10 +681,32 @@ private fun StandardMinimalPlayer(
 
                 // Progress + controls (bottom)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Live Audio Frequency Visualizer Spectrum
+                    if (nonNullState.isPlaying) {
+                        Canvas(modifier = Modifier.fillMaxWidth().height(16.dp).padding(vertical = 2.dp)) {
+                            val barCount = 20
+                            val spacing = 2.dp.toPx()
+                            val barWidth = (size.width - (barCount - 1) * spacing) / barCount
+                            val time = System.currentTimeMillis()
+                            for (i in 0 until barCount) {
+                                val freq = kotlin.math.abs(
+                                    kotlin.math.sin(time * 0.005 + i * 0.45) * 
+                                    kotlin.math.cos(time * 0.003 - i * 0.25)
+                                ).toFloat()
+                                val barHeight = (freq * size.height).coerceIn(2.dp.toPx(), size.height)
+                                drawRect(
+                                    color = accent,
+                                    topLeft = androidx.compose.ui.geometry.Offset(i * (barWidth + spacing), size.height - barHeight),
+                                    size = androidx.compose.ui.geometry.Size(barWidth, barHeight)
+                                )
+                            }
+                        }
+                    }
+
                     if (durationMs > 0) {
                         LinearProgressIndicator(
                             progress = { (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth().height(2.dp),
+                            modifier = Modifier.fillMaxWidth().height(3.dp),
                             color = currentProgressColor,
                             trackColor = currentProgressTrack
                         )
@@ -700,29 +722,29 @@ private fun StandardMinimalPlayer(
                     Row(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
                     ) {
-                        IconButton(onClick = { if (!isEditing) onPrev() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.SkipPrevious, "Prev", tint = currentIconColor, modifier = Modifier.size(20.dp))
+                        IconButton(onClick = { if (!isEditing) onPrev() }, modifier = Modifier.size(42.dp)) {
+                            Icon(Icons.Default.SkipPrevious, "Prev", tint = currentIconColor, modifier = Modifier.size(24.dp))
                         }
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(42.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(currentPlayBgColor)
                         ) {
-                            IconButton(onClick = { if (!isEditing) onPlayPause() }, modifier = Modifier.size(42.dp)) {
+                            IconButton(onClick = { if (!isEditing) onPlayPause() }, modifier = Modifier.size(48.dp)) {
                                 Icon(
                                     imageVector = if (nonNullState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = if (nonNullState.isPlaying) "Pause" else "Play",
                                     tint = currentPlayIconColor,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                         }
-                        IconButton(onClick = { if (!isEditing) onNext() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.SkipNext, "Next", tint = currentIconColor, modifier = Modifier.size(20.dp))
+                        IconButton(onClick = { if (!isEditing) onNext() }, modifier = Modifier.size(42.dp)) {
+                            Icon(Icons.Default.SkipNext, "Next", tint = currentIconColor, modifier = Modifier.size(24.dp))
                         }
                     }
                 }

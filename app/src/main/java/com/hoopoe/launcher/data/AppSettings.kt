@@ -54,7 +54,7 @@ const val GRID_COLS = 3
 const val GRID_ROWS = 2
 
 data class WidgetConfig(
-    val id: String,          // "CLOCK" | "WEATHER" | "TELEMETRY" | "NOW_PLAYING"
+    val id: String,          // "CLOCK" | "WEATHER" | "TELEMETRY" | "NOW_PLAYING" | "SPEEDOMETER"
     val gridX: Int,          // column 0..(GRID_COLS-1)
     val gridY: Int,          // row    0..(GRID_ROWS-1)
     val spanX: Int = 1,
@@ -64,9 +64,9 @@ data class WidgetConfig(
 
 data class AppSettings(
     val vehicleName: String = "DZIRE",
-    val accentColor: Int = Color.White.toArgb(),
-    val backgroundColor: Int = Color.Black.toArgb(),
-    val fontColor: Int = Color.White.toArgb(),
+    val accentColor: Int = Color(0xFF00E5FF).toArgb(), // Cyber Electric Cyan
+    val backgroundColor: Int = Color(0xFF07090E).toArgb(), // Deep Obsidian OLED Dark
+    val fontColor: Int = Color(0xFFF8FAFC).toArgb(),
     val wallpaperUri: String = "",
     val fontBold: Boolean = false,
     val textScale: Float = 1.2f,
@@ -83,12 +83,12 @@ data class AppSettings(
     val carPlayPackage: String = "",
     val androidAutoPackage: String = "",
     val useGradient: Boolean = false,
-    val gradientEndColor: Int = Color.Black.toArgb(),
+    val gradientEndColor: Int = Color(0xFF07090E).toArgb(),
     val wallpaperDim: Float = 0.55f,
     val sidebarPosition: SidebarPosition = SidebarPosition.RIGHT,
     val bottomBarShortcutsRight: Boolean = false,
     val showAltimeter: Boolean = false,
-    val showSpeedometer: Boolean = false,
+    val showSpeedometer: Boolean = true,
     val dayNightMode: DayNightMode = DayNightMode.DARK,
     val showPip: Boolean = false,
     val pipAppPackage: String = "",
@@ -116,10 +116,13 @@ fun defaultShortcuts() = listOf(
 )
 
 fun defaultWidgetLayout() = listOf(
-    WidgetConfig("CLOCK",       gridX = 0, gridY = 0, spanX = 1, spanY = 1),
-    WidgetConfig("WEATHER",     gridX = 1, gridY = 0, spanX = 1, spanY = 1),
-    WidgetConfig("TELEMETRY",   gridX = 2, gridY = 0, spanX = 1, spanY = 2),
-    WidgetConfig("NOW_PLAYING", gridX = 0, gridY = 1, spanX = 2, spanY = 1)
+    // Zone 1 (Left): Driver Telemetry Speedometer & Gauge Cluster (1x2)
+    WidgetConfig("SPEEDOMETER", gridX = 0, gridY = 0, spanX = 1, spanY = 2),
+    // Zone 2 (Center): Digital Clock & Weather Instruments (1x1 each)
+    WidgetConfig("CLOCK",       gridX = 1, gridY = 0, spanX = 1, spanY = 1),
+    WidgetConfig("WEATHER",     gridX = 1, gridY = 1, spanX = 1, spanY = 1),
+    // Zone 3 (Right): Modular Glanceable Media Deck (1x2)
+    WidgetConfig("NOW_PLAYING", gridX = 2, gridY = 0, spanX = 1, spanY = 2)
 )
 
 fun AppSettings.activeWidgetIds(): Set<String> = buildSet {

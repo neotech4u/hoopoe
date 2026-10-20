@@ -1,17 +1,25 @@
 package com.hoopoe.launcher.ui.widget
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hoopoe.launcher.util.LocationData
@@ -30,106 +38,175 @@ fun SpeedometerWidget(
     val maxSpeed     = if (isMetric) 200f else 124f
     val speedDisplay = ((location?.speedMps ?: 0f) * if (isMetric) 3.6f else 2.237f).coerceAtLeast(0f)
     val unitLabel    = if (isMetric) "KM/H" else "MPH"
-    val trackAlpha   = if (isDayMode) 0.18f else 0.07f
-    val tickAlphaMaj = if (isDayMode) 0.50f else 0.28f
-    val tickAlphaMin = if (isDayMode) 0.25f else 0.13f
+    val trackAlpha   = if (isDayMode) 0.18f else 0.12f
 
-    val contentColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-    val subAlpha     = if (isDayMode) 0.55f else 0.32f
-    val tickBaseColor = if (isDayMode) Color(0xFF222222) else MaterialTheme.colorScheme.onBackground
+    val contentColor = if (isDayMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val subAlpha     = if (isDayMode) 0.65f else 0.55f
+    val tickBaseColor = if (isDayMode) Color(0xFF334155) else Color(0xFF94A3B8)
 
-    Box(
-        modifier         = modifier,
-        contentAlignment = Alignment.Center
+    // Interactive Gear State (Defaults to Drive "D")
+    var currentGear by remember { mutableStateOf("D") }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        if (digitalOnly) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier            = Modifier.fillMaxSize()
-            ) {
-                Text(
-                    text          = "%.0f".format(speedDisplay),
-                    color         = contentColor,
-                    fontSize      = 54.sp,
-                    fontWeight    = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    letterSpacing = (-1.5).sp
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text          = unitLabel,
-                    color         = contentColor.copy(alpha = subAlpha * 1.5f),
-                    fontSize      = 10.sp,
-                    fontWeight    = androidx.compose.ui.text.font.FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-            }
-        } else {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val cx    = size.width  / 2f
-                val cy    = size.height / 2f
-                val arcR  = minOf(size.width, size.height) * 0.37f
-                val trackW = arcR * 0.13f
-                val startAngle    = 150f
-                val sweepTotal    = 240f
-                val progressSweep = (speedDisplay / maxSpeed).coerceIn(0f, 1f) * sweepTotal
+        // Top Sub-header: Cluster Title
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "TELEMETRY",
+                color = contentColor.copy(alpha = 0.45f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.5.sp
+            )
+            Text(
+                text = "GPS ACTIVE",
+                color = accent,
+                fontSize = 8.5.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+        }
 
-                val tl   = Offset(cx - arcR, cy - arcR)
-                val sz   = Size(arcR * 2f, arcR * 2f)
+        // Center: Radial Speedometer Dial or Digital Readout
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (digitalOnly) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text          = "%.0f".format(speedDisplay),
+                        color         = contentColor,
+                        fontSize      = 64.sp,
+                        fontWeight    = FontWeight.Bold,
+                        letterSpacing = (-2).sp
+                    )
+                    Text(
+                        text          = unitLabel,
+                        color         = accent,
+                        fontSize      = 11.sp,
+                        fontWeight    = FontWeight.Bold,
+                        letterSpacing = 2.5.sp
+                    )
+                }
+            } else {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val cx         = size.width  / 2f
+                    val cy         = size.height / 2f
+                    val arcR       = minOf(size.width, size.height) * 0.40f
+                    val trackW     = arcR * 0.12f
+                    val startAngle = 145f
+                    val sweepTotal = 250f
+                    val progressSweep = (speedDisplay / maxSpeed).coerceIn(0f, 1f) * sweepTotal
 
-                drawArc(
-                    color      = contentColor.copy(alpha = trackAlpha),
-                    startAngle = startAngle,
-                    sweepAngle = sweepTotal,
-                    useCenter  = false,
-                    topLeft    = tl,
-                    size       = sz,
-                    style      = Stroke(width = trackW, cap = StrokeCap.Round)
-                )
+                    val tl = Offset(cx - arcR, cy - arcR)
+                    val sz = Size(arcR * 2f, arcR * 2f)
 
-                if (progressSweep > 0.5f) {
+                    // Track Background
                     drawArc(
-                        color      = accent,
+                        color      = contentColor.copy(alpha = trackAlpha),
                         startAngle = startAngle,
-                        sweepAngle = progressSweep,
+                        sweepAngle = sweepTotal,
                         useCenter  = false,
                         topLeft    = tl,
                         size       = sz,
                         style      = Stroke(width = trackW, cap = StrokeCap.Round)
                     )
+
+                    // Active Glowing Speed Progress Arc
+                    if (progressSweep > 1f) {
+                        drawArc(
+                            color      = accent,
+                            startAngle = startAngle,
+                            sweepAngle = progressSweep,
+                            useCenter  = false,
+                            topLeft    = tl,
+                            size       = sz,
+                            style      = Stroke(width = trackW, cap = StrokeCap.Round)
+                        )
+                    }
+
+                    // Automotive Dial Ticks
+                    for (i in 0..10) {
+                        val angle   = startAngle + i * (sweepTotal / 10f)
+                        val rad     = Math.toRadians(angle.toDouble())
+                        val isMajor = i % 2 == 0
+                        val outerR  = arcR - trackW / 2f - 4.dp.toPx()
+                        val innerR  = outerR - if (isMajor) 7.dp.toPx() else 4.dp.toPx()
+                        drawLine(
+                            color       = tickBaseColor.copy(alpha = if (isMajor) 0.6f else 0.3f),
+                            start       = Offset(cx + (outerR * cos(rad)).toFloat(), cy + (outerR * sin(rad)).toFloat()),
+                            end         = Offset(cx + (innerR * cos(rad)).toFloat(), cy + (innerR * sin(rad)).toFloat()),
+                            strokeWidth = if (isMajor) 2.dp.toPx() else 1.dp.toPx()
+                        )
+                    }
                 }
 
-                for (i in 0..10) {
-                    val angle   = startAngle + i * (sweepTotal / 10f)
-                    val rad     = Math.toRadians(angle.toDouble())
-                    val isMajor = i % 2 == 0
-                    val outerR  = arcR - trackW / 2f - 3.dp.toPx()
-                    val innerR  = outerR - if (isMajor) 7.dp.toPx() else 4.dp.toPx()
-                    drawLine(
-                        color       = tickBaseColor.copy(alpha = if (isMajor) tickAlphaMaj else tickAlphaMin),
-                        start       = Offset(cx + (outerR * cos(rad)).toFloat(), cy + (outerR * sin(rad)).toFloat()),
-                        end         = Offset(cx + (innerR * cos(rad)).toFloat(), cy + (innerR * sin(rad)).toFloat()),
-                        strokeWidth = if (isMajor) 1.5.dp.toPx() else 0.8.dp.toPx()
+                // Digital Center Readout
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text          = "%.0f".format(speedDisplay),
+                        color         = contentColor,
+                        fontSize      = 44.sp,
+                        fontWeight    = FontWeight.Bold,
+                        letterSpacing = (-1.5).sp
+                    )
+                    Text(
+                        text          = unitLabel,
+                        color         = accent,
+                        fontSize      = 10.sp,
+                        fontWeight    = FontWeight.Bold,
+                        letterSpacing = 2.sp
                     )
                 }
             }
+        }
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier            = Modifier.offset(y = (-4).dp)
-            ) {
-                Text(
-                    text          = "%.0f".format(speedDisplay),
-                    color         = contentColor,
-                    fontSize      = 34.sp,
-                    letterSpacing = (-1).sp
-                )
-                Text(
-                    text          = unitLabel,
-                    color         = contentColor.copy(alpha = subAlpha),
-                    fontSize      = 8.sp,
-                    letterSpacing = 2.sp
-                )
+        // Bottom: Tactile PRND Gear Selector Bar
+        Row(
+            modifier = Modifier
+                .padding(bottom = 6.dp)
+                .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                .border(1.dp, Color(0xFF243048), RoundedCornerShape(20.dp))
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            listOf("P", "R", "N", "D").forEach { gear ->
+                val isActive = currentGear == gear
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(if (isActive) accent else Color.Transparent)
+                        .clickable { currentGear = gear },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = gear,
+                        color = if (isActive) Color(0xFF07090E) else contentColor.copy(alpha = 0.45f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
             }
         }
     }

@@ -14,7 +14,7 @@ val LocalDayMode = staticCompositionLocalOf { false }
 
 @Composable
 fun OpenLauncherTheme(
-    accent: Color     = AccentWhite,
+    accent: Color     = AccentCyan,
     background: Color = Black,
     textColor: Color  = Color.White,
     fontBold: Boolean = false,
@@ -33,13 +33,13 @@ fun OpenLauncherTheme(
         secondary        = accent.copy(alpha = 0.7f),
         onSecondary      = onAccent,
         tertiary         = accent.copy(alpha = 0.5f),
-        background       = if (useCustomBg) background else Color(0xFFEEEEEE),
+        background       = if (useCustomBg) background else Color(0xFFE2E8F0),
         surface          = Color(0xFFFFFFFF),
-        onBackground     = Color(0xFF111111),
-        onSurface        = Color(0xFF111111),
-        surfaceVariant   = Color(0xFFF5F5F5),
-        onSurfaceVariant = Color(0xFF666666),
-        outline          = Color(0xFFCCCCCC)
+        onBackground     = Color(0xFF0F172A),
+        onSurface        = Color(0xFF0F172A),
+        surfaceVariant   = Color(0xFFF1F5F9),
+        onSurfaceVariant = Color(0xFF475569),
+        outline          = Color(0xFFCBD5E1)
     ) else darkColorScheme(
         primary          = accent,
         onPrimary        = onAccent,
@@ -52,7 +52,7 @@ fun OpenLauncherTheme(
         onSurface        = textColor,
         surfaceVariant   = DimSurface,
         onSurfaceVariant = TextMuted,
-        outline          = DividerGray
+        outline          = BorderAcrylic
     )
     CompositionLocalProvider(LocalDayMode provides isDayMode) {
         MaterialTheme(

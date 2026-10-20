@@ -42,8 +42,8 @@ import com.hoopoe.launcher.model.NavDestination
 import com.hoopoe.launcher.ui.theme.LocalDayMode
 import kotlin.math.roundToInt
 
-private val ICON_SIZE   = 22.dp
-private val SLOT_SIZE   = 52.dp
+private val ICON_SIZE   = 24.dp
+private val SLOT_SIZE   = 60.dp
 
 @Composable
 fun Sidebar(
@@ -61,9 +61,9 @@ fun Sidebar(
 ) {
     val isDayMode    = LocalDayMode.current
     val accent       = Color(settings.accentColor)
-    val sidebarBg    = if (isDayMode) Color(0xFFE0E0E0) else Color.Black.copy(alpha = 0.4f)
-    val iconInactive = if (isDayMode) Color(0xFF777777) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
-    val dividerColor = if (isDayMode) Color(0xFFCCCCCC) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
+    val sidebarBg    = if (isDayMode) Color(0xFFF1F5F9) else Color(0xFF0F141F).copy(alpha = 0.88f)
+    val iconInactive = if (isDayMode) Color(0xFF64748B) else Color(0xFF64748B)
+    val dividerColor = if (isDayMode) Color(0xFFCBD5E1) else Color(0xFF243048)
     val density      = LocalDensity.current
     val slotSizePx   = with(density) { SLOT_SIZE.toPx() }
 
@@ -159,7 +159,7 @@ fun Sidebar(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(64.dp)
                 .background(sidebarBg)
         ) {
             // Shortcuts centred, inset past the edge-pinned nav buttons and
@@ -197,7 +197,7 @@ fun Sidebar(
     } else {
         Column(
             modifier = modifier
-                .width(56.dp)
+                .width(64.dp)
                 .fillMaxHeight()
                 .background(sidebarBg),
             horizontalAlignment = Alignment.CenterHorizontally

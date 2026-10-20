@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -46,7 +47,7 @@ import com.hoopoe.launcher.ui.widget.*
 import java.util.Calendar
 import com.hoopoe.launcher.util.LocationData
 
-private val WIDGET_RADIUS = RoundedCornerShape(0.dp)
+private val WIDGET_RADIUS = RoundedCornerShape(16.dp)
 
 private data class WidgetTypeInfo(
     val id: String,
@@ -136,21 +137,21 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val accent       = Color(settings.accentColor)
-    val gap          = 6.dp
+    val gap          = 10.dp
     val hasWallpaper = settings.wallpaperUri.isNotEmpty()
     val widgetBg     = when {
         isDayMode    -> Color(0xFFFFFFFF)
-        hasWallpaper -> Color(0xCC000000)
-        else         -> Color.Black.copy(alpha = 0.35f)
+        hasWallpaper -> Color(0xCC0F141F)
+        else         -> Color(0xFF0F141F).copy(alpha = 0.82f)
     }
     val widgetBorder = when {
-        isDayMode    -> Color(0xFFCCCCCC)
-        hasWallpaper -> Color(0x22FFFFFF)
-        else         -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.08f)
+        isDayMode    -> Color(0xFFCBD5E1)
+        hasWallpaper -> Color(0xFF243048).copy(alpha = 0.6f)
+        else         -> Color(0xFF243048)
     }
-    val headerTextColor   = if (isDayMode) Color(0xFF111111) else accent
-    val statusIconColor   = if (isDayMode) Color(0xFF444444) else Color(0xFF666666)
-    val controlIconColor  = if (isDayMode) Color(0xFF666666) else Color(0xFF444444)
+    val headerTextColor   = if (isDayMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val statusIconColor   = if (isDayMode) Color(0xFF475569) else Color(0xFF64748B)
+    val controlIconColor  = if (isDayMode) Color(0xFF475569) else Color(0xFF94A3B8)
 
     var resizingId    by remember { mutableStateOf<String?>(null) }
     var contextMenuId by remember { mutableStateOf<String?>(null) }
@@ -160,31 +161,158 @@ fun HomeScreen(
     var editMode         by remember { mutableStateOf(false) }
     var widgetLibraryOpen by remember { mutableStateOf(false) }
 
+    var activeDriveMode by remember { mutableStateOf("SPORT") }
+    var isLeftBlinker by remember { mutableStateOf(false) }
+    var isRightBlinker by remember { mutableStateOf(false) }
+
     Column(modifier = modifier.fillMaxSize()) {
 
-        // ── Header ──────────────────────────────────────────────────────────
+        // ── Futuristic Top Status Rail ──────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .padding(horizontal = 20.dp),
+                .height(50.dp)
+                .padding(horizontal = 14.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text          = settings.vehicleName.uppercase(),
-                style         = MaterialTheme.typography.titleLarge,
-                color         = headerTextColor,
-                letterSpacing = 3.sp,
-                fontSize      = 14.sp
-            )
+            // Vehicle Identity Pill
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFF243048), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(15.dp)
+                )
+                Text(
+                    text = "HOOPOE",
+                    color = headerTextColor,
+                    fontSize = 11.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Box(
+                    modifier = Modifier
+                        .background(accent.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                        .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = settings.vehicleName.uppercase(),
+                        color = accent,
+                        fontSize = 10.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(10.dp))
+
+            // Drive Profile Pills: ECO | SPORT | PILOT
+            Row(
+                modifier = Modifier
+                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                    .border(1.dp, Color(0xFF243048), RoundedCornerShape(16.dp))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("ECO", "SPORT", "PILOT").forEach { mode ->
+                    val isSelected = activeDriveMode == mode
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) accent else Color.Transparent)
+                            .clickable { activeDriveMode = mode }
+                            .padding(horizontal = 9.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = mode,
+                            color = if (isSelected) Color(0xFF07090E) else statusIconColor,
+                            fontSize = 9.5.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.weight(1f))
+
+            // Turn Signal Blinkers
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(if (isLeftBlinker) Color(0xFF00E676).copy(alpha = 0.2f) else Color.Transparent)
+                        .clickable {
+                            isLeftBlinker = !isLeftBlinker
+                            if (isLeftBlinker) isRightBlinker = false
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Left Blinker",
+                        tint = if (isLeftBlinker) Color(0xFF00E676) else statusIconColor.copy(alpha = 0.4f),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(if (isRightBlinker) Color(0xFF00E676).copy(alpha = 0.2f) else Color.Transparent)
+                        .clickable {
+                            isRightBlinker = !isRightBlinker
+                            if (isRightBlinker) isLeftBlinker = false
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = "Right Blinker",
+                        tint = if (isRightBlinker) Color(0xFF00E676) else statusIconColor.copy(alpha = 0.4f),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(10.dp))
+
+            // Exterior Weather Temp if available
+            if (weather != null) {
+                Text(
+                    text = weather.temperatureDisplay(settings.unitSystem.name == "METRIC"),
+                    color = Color(0xFFFF9100),
+                    fontSize = 11.5.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+
+            // Connectivity
             AnimatedVisibility(visible = isWifi, enter = fadeIn(), exit = fadeOut()) {
-                Icon(Icons.Default.Wifi, "WiFi", tint = statusIconColor, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Wifi, "WiFi", tint = accent, modifier = Modifier.size(15.dp))
             }
             if (isWifi) Spacer(Modifier.width(6.dp))
             AnimatedVisibility(visible = isData, enter = fadeIn(), exit = fadeOut()) {
-                Icon(Icons.Default.SignalCellularAlt, "Data", tint = statusIconColor, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.SignalCellularAlt, "5G Data", tint = accent, modifier = Modifier.size(15.dp))
             }
+
             if (isLandscape) {
                 Spacer(Modifier.width(8.dp))
                 if (editMode) {
@@ -215,7 +343,7 @@ fun HomeScreen(
             }
         }
 
-        HorizontalDivider(color = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF141414))
+        HorizontalDivider(color = if (isDayMode) Color(0xFFCCCCCC) else Color(0xFF243048))
 
         // ── Widget Grid ─────────────────────────────────────────────────────
         BoxWithConstraints(
