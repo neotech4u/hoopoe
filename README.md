@@ -4,6 +4,8 @@
   <p><strong>A personalized, lightweight, offline-first Android launcher engineered for aftermarket car head units.</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [![Latest Release](https://img.shields.io/github/v/release/neotech4u/hoopoe?color=blue&label=Release)](https://github.com/neotech4u/hoopoe/releases/latest)
+  [![Download APK](https://img.shields.io/badge/Download-APK-success?logo=android)](https://github.com/neotech4u/hoopoe/releases/download/v1.0.0/hoopoe-launcher-v1.0.0.apk)
   [![Platform: Android](https://img.shields.io/badge/Platform-Android%2010%2B%20%28API%2029%2B%29-green.svg)](https://developer.android.com)
   [![UI: Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-purple.svg)](https://developer.android.com/jetpack/compose)
   [![Optimized for 2GB RAM](https://img.shields.io/badge/RAM-2GB%20Optimized-orange.svg)](#-optimizations-for-2-gb-ram--aftermarket-socs)
@@ -109,10 +111,8 @@ To ensure peak responsiveness on budget quad-core SoCs:
 ## 📲 Installation Guide
 
 ### Method 1: USB Flash Drive (Recommended)
-1. Download or copy the built APK:
-   ```
-   hoopoe-launcher-debug.apk
-   ```
+1. Download the release APK directly from GitHub:
+   - **[Download hoopoe-launcher-v1.0.0.apk](https://github.com/neotech4u/hoopoe/releases/download/v1.0.0/hoopoe-launcher-v1.0.0.apk)**
 2. Copy the APK onto a USB flash drive (FAT32 format).
 3. Plug the drive into your car's USB port.
 4. Open the head unit's **File Manager** or **ApkInstaller** app.
