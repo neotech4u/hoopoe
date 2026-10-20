@@ -1,99 +1,159 @@
 <div align="center">
-  <img width="256" height="256" alt="logoo" src="https://github.com/user-attachments/assets/4c5c4ddb-836d-4c59-8325-76b8c8d78bb3" />
+  <img width="200" height="200" alt="Hoopoe Launcher Logo" src="./hoopoe_logo.png" />
   <h1>Hoopoe Launcher</h1>
-  <p><strong>An open-source, offline-first Android launcher built specifically for aftermarket car head units.</strong></p>
+  <p><strong>A personalized, lightweight, offline-first Android launcher engineered for aftermarket car head units.</strong></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-  [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+  [![Platform: Android](https://img.shields.io/badge/Platform-Android%2010%2B%20%28API%2029%2B%29-green.svg)](https://developer.android.com)
+  [![UI: Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-purple.svg)](https://developer.android.com/jetpack/compose)
+  [![Optimized for 2GB RAM](https://img.shields.io/badge/RAM-2GB%20Optimized-orange.svg)](#-optimizations-for-2-gb-ram--aftermarket-socs)
 </div>
 
 ---
 
 ## 📖 Table of Contents
-- [Why Build Another Car Launcher?](#-why-build-another-car-launcher)
-- [The Philosophy](#-the-philosophy-offline-first--oem-aesthetics)
-- [Current Features](#-current-features)
-- [Roadmap & Future Plans](#️-roadmap--future-plans)
-- [Contributing](#-contributing-open-source-first)
-- [License](#-license)
+- [Overview & Philosophy](#-overview--philosophy)
+- [Latest Release Highlights](#-latest-release-highlights)
+- [Core Features](#-core-features)
+- [Optimizations for 2 GB RAM & Aftermarket SoCs](#-optimizations-for-2-gb-ram--aftermarket-socs)
+- [Hardware & Compatibility Profile](#-hardware--compatibility-profile)
+- [Installation Guide](#-installation-guide)
+- [Building from Source](#-building-from-source)
+- [License & Attribution](#-license--attribution)
 
 ---
 
-## 🛑 Why build another car launcher?
+## 🧠 Overview & Philosophy
 
-I built this project for three simple reasons:
+Most modern aftermarket head units are running underpowered, resource-constrained automotive chips (e.g. Allwinner, Rockchip, MediaTek) with 1–2 GB RAM. Furthermore, most drivers rely on wireless CarPlay or Android Auto, meaning the underlying Android head unit remains **offline** most of the time.
 
-1. **No Premium Paywalls:** I didn't want to pay someone for basic dashboard functionality.
-2. **Community-Driven:** I wanted it to be open-source. The car modding community is incredible, and I wanted to create a foundation that others could actually build upon, fork, and improve.
-3. **Clean Aesthetics:** Let's be honest—most Android launchers look like cheap video games, have zero functionality, or half the features are broken. This is built to look clean, professional, and integrated.
-
-## 🧠 The Philosophy: Offline-First & OEM+ Aesthetics
-
-Most modern head unit setups rely on wireless CarPlay or Android Auto for navigation and media. That means the head unit itself is offline 90% of the time.
-
-I designed this launcher around that reality. It is built to be functional without a Wi-Fi connection while remaining highly customizable. Whether you are installing this in a 2020 Corolla Hybrid or a custom project car, the goal is for the UI to look like it actually belongs in your car's interior—a true OEM+ aesthetic.
+**Hoopoe Launcher** is engineered around this reality:
+1. **OEM+ Automotive Aesthetics:** Clean, distraction-free dashboard typography and dark theme by default, eliminating cluttered launcher interfaces.
+2. **Offline-First Resilience:** Fully functional without an active Wi-Fi connection. GPS gauges, trip meters, clocks, and widgets operate completely offline without blank screens or network hangs.
+3. **Hardware Preservation:** Keeps factory applications accessible (Radio tuner, Bluetooth phone, reversing camera, factory settings) without requiring root access or MCU tampering.
+4. **Lean Memory Footprint:** Tuned to run smoothly within 2 GB RAM without aggressive background churn or memory leaks.
 
 ---
 
-## ✨ Current Features
+## 🚀 Latest Release Highlights
 
-This project is currently in active development, but the core foundation is highly customizable:
+### 🦅 Official Hoopoe Rebranding
+- **Application ID & Namespace:** Refactored to `com.hoopoe.launcher`.
+- **Branded App Icons:** Clean multi-density mipmaps (`mdpi` through `xxxhdpi`) in square and rounded formats.
+- **Redesigned Onboarding:** Modern, high-resolution first-run onboarding screen.
 
-<img width="2400" height="896" alt="Screenshot_20260527-025436" src="https://github.com/user-attachments/assets/a1bc63f3-2d4e-4ac0-bd56-b5d181681658" />
-<img width="2400" height="896" alt="Screenshot_20260527-212602" src="https://github.com/user-attachments/assets/cf319144-0a06-4bc6-ab83-855ef8514a9c" />
-<img width="2400" height="896" alt="Screenshot_20260527-025446" src="https://github.com/user-attachments/assets/cc038c53-dcf5-4b4b-bd73-bfcd18bd82d2" />
-<img width="2400" height="896" alt="Screenshot_20260527-025451" src="https://github.com/user-attachments/assets/cc038c53-dcf5-4b4b-bd73-bfcd18bd82d2" />
+### 🎬 Startup Logon Video Animation
+- **Hardware-Accelerated Boot Animation:** Integrated custom boot animation (`hoopoe_logon.mp4`) running via native hardware-accelerated video playback.
+- **Driver Distraction Safeguard:** Smart session tracking ensures the boot video runs **only on cold boot**. Returning to the Home screen while driving or switching apps bypasses the video instantly.
+- **Tap-to-Skip & Error Resilient:** Instant tap-to-skip support with fallback protection if the media engine encounters hardware decoder delays.
+- **Configurable in Settings:** Toggle the animation on/off at will, or use the **Preview Logon Animation** button in Settings to inspect playback.
+
+### 🚗 Ergonomics & Automotive Dashboard Customization
+- **Right-Hand Drive (RHD) Ready:** Default sidebar positioned on the **RIGHT** for intuitive driver reach in RHD markets (India, UK, Japan, Australia, etc.), with full toggle support for Left and Bottom configurations.
+- **Vehicle Customization:** Default car title preset to `DZIRE` with full custom name configuration.
+- **Expanded Quick Navigation:** Added dedicated **Navi** shortcut alongside Phone, Music, and Settings.
+- **Intelligent Fallback Role Dispatcher:** Seamlessly detects and routes app launches for Navigation, Music, Bluetooth Phone, Reversing Camera, Radio, and Android System Settings across diverse OEM ROMs.
+
+---
+
+## ✨ Core Features
 
 ### 🧩 Modular Widget Grid
-The home screen is a fully drag-and-drop, resize-capable grid. Every widget pane can be moved, scaled, and stacked however you want. Nothing is locked to a fixed position. Add and remove widgets from the built-in library at any time.
+The dashboard features a drag-and-drop, resize-capable grid. Reposition, scale, and stack panes freely to fit your head unit's aspect ratio.
 
 ### 🎛️ Instrument Panel Widgets
-A growing library of purpose-built car widgets designed to look like they belong on a dash — not a phone:
+- **Smart Music Player:** Pulls track metadata, album art, and playback controls from local players and streaming services (Spotify, YouTube Music, etc.).
+- **Digital Speedometer:** GPS-based speed readout with configurable smoothing.
+- **Trip Meter & 0–100 km/h Timer:** Rolling odometer and elapsed time tracking with an integrated acceleration timer.
+- **Digital Clock & Date:** Large touch-friendly clock widget with battery-friendly minute-boundary updating.
+- **Head Unit Vitals:** Real-time CPU usage, memory pressure, and temperature diagnostics.
+- **Dynamic Weather:** Automatically checks network status—displays weather when connected, hides cleanly when offline.
+- **Altimeter & GPS Compass:** Live altitude and directional heading derived directly from offline satellite NMEA data.
 
-* **Smart Music Player** — pulls track metadata, album art, and playback controls from any local or streaming source. Detects when CarPlay or Android Auto is in use and switches into shortcut mode automatically.
-* **AM/FM Radio** — instrument panel-style digital display that mirrors your head unit's **real tuner**. On szchoiceway-based units it talks to the MCU directly (seek, FM1/FM2/FM3/AM band switching, direct-tune frequency presets with memory). On every other unit it mirrors and controls your vendor radio app through its media session — assign the app once from the widget and get live frequency/station readout plus seek controls. No simulated stations or fake static.
-* **Speedometer** — standalone GPS-based digital speed readout. Independent from the trip tracker so it can live anywhere on the grid.
-* **Altimeter** — live elevation tracking pulled from the device GPS.
-* **Trip Meter** — taxi-style rolling odometer display with trip distance and elapsed time. Includes a hidden **0–100 km/h timer** (tap the meter label to reveal it) that auto-starts from standstill and locks in your time at 100.
-* **Head Unit Vitals** — real-time CPU load, memory pressure, and temperature readouts for monitoring your head unit's thermals on long drives.
-* **Soundboard** — 6 fully assignable sound pads. Each pad can be set to a built-in synth type (HORN, BEEP, ALERT, KICK, SNARE, BASS, FART) or loaded with any custom audio file from device storage. Assignments persist across restarts.
-* **Dynamic Weather** — auto-detects connectivity. Shows live weather when online, hides cleanly when offline. No broken blank widgets.
-* **GPS Compass** — live bearing with calibrated heading display.
-
-### 🗂️ App Library
-Pulls every installed app, including system-level apps that most launchers miss — such as buried CarPlay and Android Auto receiver apps on head units that don't surface them normally.
-
-### 📌 Sidebar Shortcuts
-The sidebar holds your most-used app shortcuts. Drag to reorder, long-press to remap, and position the entire bar on the Left, Right, or Bottom of the screen to suit your driving hand or interior layout.
+### 🗂️ App Drawer & Factory Integration
+- Discovers all installed apps, including OEM vehicle apps (CarPlay/Android Auto receivers, Radio, Reversing Camera, MCU settings) often hidden by stock Android launchers.
+- Searchable, touch-friendly grid optimized for landscape screens.
 
 ### 🌗 Smart Day/Night Theme Engine
-Four distinct modes for head units that can't always pass the car's headlight signal to Android:
-* **Forced Dark / Forced Light** — static overrides.
-* **System Sync** — follows the head unit's native light/dark setting.
-* **Sunset Mode** — automatically switches at local sunrise/sunset using offline location calculations, no internet required.
-
-### 🛰️ GPS with Offline Calibration
-Speed and distance calculations use a rewritten GPS math layer with improved filtering. A calibration offset option is available for devices whose GPS chips report inaccurate baselines — accessible from the trip meter settings for reliable offline use.
-
-### 🎨 Deep Personalization
-Accent color, background color, gradient, wallpaper with adjustable dim, font weight, text scale, UI scale, and app font — all tunable from the settings menu, which is organized into logical sections (Appearance, Layout, Widgets, System).
-
-### 📱 Picture-in-Picture (PiP) Overlay ⚠️ *Beta*
-Launch any app as a floating freeform window layered over the launcher.
-
-> **This feature is currently in beta and requires the special `openlauncher-test-pip` build.** It relies on AOSP platform-level signing to access the window embedding APIs. The standard APK does not include PiP — use the `test-pip` release asset if you want to try it. Expect rough edges: not all apps behave correctly in a freeform window, and compatibility varies heavily by head unit ROM. This is a work in progress.
-
-### 🔔 First-Run Onboarding
-A clean onboarding flow on first launch explains key permissions (location, notification listener, draw-over-apps) before requesting them, with direct links to the relevant system settings screens.
+- **Dark Mode by Default:** Optimized for evening driving and OLED/IPS car panels.
+- **Sunset Mode:** Switches between Day and Night palettes automatically based on local offline sunset/sunrise astronomical calculations.
+- **System Sync:** Follows vehicle headlight triggers when supported by the head unit's illumination wire.
 
 ---
 
-## 🗺️ Roadmap & Future Plans
+## ⚡ Optimizations for 2 GB RAM & Aftermarket SoCs
 
-The current priority is **stability and universal compatibility** — ensuring the launcher scales correctly across the wide range of aftermarket head unit resolutions and hardware specs.
+To ensure peak responsiveness on budget quad-core SoCs:
+* **Minute-Boundary Clock Updates:** The digital clock calculates delay until the next minute boundary rather than ticking every second, eliminating 59 unnecessary Jetpack Compose recompositions and CPU wakeups every minute.
+* **Bitmap Clamping:** Media album art received from `MediaSession` notifications is clamped to a maximum resolution of 512×512, avoiding sudden OOM crashes during heavy music playback.
+* **Safe Storage Access Framework (SAF):** Wallpaper selection handles non-standard AOSP document pickers gracefully without crashing on stripped-down car ROMs.
+* **Low Background Churn:** Zero background telemetry, analytics, or unnecessary background polling services.
 
-Remaining targets:
+---
 
-- [ ] **Advanced Color Engine:** Per-element hex control for every surface in the UI — accent, text, borders, backgrounds — to precisely match a car's specific dashboard ambient lighting.
-- [ ] **Offline Weather via FM/RDS:** A highly experimental goal to pull local weather data directly from FM radio bands (RDS/TMC) using the car's physical antenna — bypassing Wi-Fi entirely.
-- [ ] **Universal Theming Engine:** A standardized platform for the community to build, share, and install full visual themes.
+## 📟 Hardware & Compatibility Profile
+
+| Parameter | Specifications / Validated Target |
+| :--- | :--- |
+| **Primary Target Vehicle** | 2020 Maruti Suzuki Dzire |
+| **SoC / Board** | Allwinner `sun50iw10p1` (Quad-core ARM Cortex-A53 up to 1.8 GHz) |
+| **GPU** | PowerVR GE8300 |
+| **RAM** | 2 GB |
+| **Storage** | 32 GB Internal Storage |
+| **Android Version** | Android 10 (API level 29) & upwards |
+| **Display** | Landscape Touchscreen (720p / 1080p compatible) |
+| **Root Required?** | **No** (installs cleanly as a standard non-root Android application) |
+
+---
+
+## 📲 Installation Guide
+
+### Method 1: USB Flash Drive (Recommended)
+1. Download or copy the built APK:
+   ```
+   hoopoe-launcher-debug.apk
+   ```
+2. Copy the APK onto a USB flash drive (FAT32 format).
+3. Plug the drive into your car's USB port.
+4. Open the head unit's **File Manager** or **ApkInstaller** app.
+5. Select `hoopoe-launcher-debug.apk` and tap **Install**.
+6. Press the **Home** button on your unit, select **Hoopoe Launcher**, and select **"Just Once"** to verify stability before setting as default.
+
+### Method 2: ADB (Android Debug Bridge)
+If your head unit has USB debugging or Wi-Fi debugging enabled:
+```bash
+adb install -r hoopoe-launcher-debug.apk
+```
+
+---
+
+## 🛠️ Building from Source
+
+### Prerequisites
+- **JDK:** OpenJDK 17
+- **Android SDK:** Platform 34, Build-Tools 34.0.0
+- **Gradle:** 9.4.1 (configured via wrapper)
+
+### Build Command
+Run the standard Gradle wrapper command:
+```bash
+# Windows
+.\gradlew.bat assembleDebug
+
+# Linux / macOS
+./gradlew assembleDebug
+```
+
+The compiled APK will be generated at:
+```
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+---
+
+## 📄 License & Attribution
+
+This project is licensed under the **[MIT License](LICENSE)**.
+
+### Attribution
+Hoopoe Launcher builds upon the architecture and open-source foundations of [openlauncher](https://github.com/dw2lam/openlauncher) by **dw2lam**, customized and maintained by **Mohamed Usman** ([@neotech4u](https://github.com/neotech4u)) for aftermarket automotive head units.
