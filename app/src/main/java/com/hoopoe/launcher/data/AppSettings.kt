@@ -105,7 +105,8 @@ data class AppSettings(
     val gradientDirection: GradientDirection = GradientDirection.DIAGONAL,
     val useCustomBackgroundColor: Boolean = false,
     val playLogonAnimation: Boolean = true,
-    val showTravelDua: Boolean = true
+    val showTravelDua: Boolean = true,
+    val showFuelHub: Boolean = false
 )
 
 fun defaultShortcuts() = listOf(
@@ -136,6 +137,7 @@ fun AppSettings.activeWidgetIds(): Set<String> = buildSet {
     if (showVitals) add("VITALS")
     if (showTripTracker) add("TRIP_TRACKER")
     if (showSoundboard) add("SOUNDBOARD")
+    if (showFuelHub) add("FUEL_HUB")
 }
 
 /**

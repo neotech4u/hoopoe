@@ -65,6 +65,7 @@ private val ALL_WIDGET_TYPES = listOf(
     WidgetTypeInfo("SPEEDOMETER", "SPEED",       Icons.Default.Speed,         "GPS speed"),
     WidgetTypeInfo("VITALS",      "VITALS",      Icons.Default.Dns,           "Head Unit Health / Vitals"),
     WidgetTypeInfo("TRIP_TRACKER", "TRIP TRACKER", Icons.Default.Map,          "Trip logs & stats"),
+    WidgetTypeInfo("FUEL_HUB",     "FUEL & TRIP",  Icons.Default.LocalGasStation, "Trip & Fuel Telemetry Hub"),
     WidgetTypeInfo("SOUNDBOARD",  "SOUNDBOARD",  Icons.Default.Piano,         "Custom sound pads")
 )
 
@@ -78,6 +79,7 @@ private fun canAddWidget(settings: com.hoopoe.launcher.data.AppSettings): Boolea
         if (settings.showSpeedometer) add("SPEEDOMETER")
         if (settings.showVitals) add("VITALS")
         if (settings.showTripTracker) add("TRIP_TRACKER")
+        if (settings.showFuelHub) add("FUEL_HUB")
         if (settings.showSoundboard) add("SOUNDBOARD")
     }
     val activeWidgets = settings.widgetLayout.filter { it.enabled && it.id in visibleIds }
@@ -164,6 +166,7 @@ fun HomeScreen(
     var activeDriveMode by remember { mutableStateOf("SPORT") }
     var isLeftBlinker by remember { mutableStateOf(false) }
     var isRightBlinker by remember { mutableStateOf(false) }
+    var showRefuelDialog by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -242,6 +245,42 @@ fun HomeScreen(
                             letterSpacing = 0.5.sp
                         )
                     }
+                }
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // OBD-II / CANbus Status Badge
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val fuelRepo = remember { com.hoopoe.launcher.data.TripFuelRepository.getInstance(context) }
+            val isObdOnline by fuelRepo.isObdOnline.collectAsState()
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (isObdOnline) accent.copy(alpha = 0.15f) else Color(0xFFFF9100).copy(alpha = 0.15f))
+                    .border(1.dp, if (isObdOnline) accent.copy(alpha = 0.5f) else Color(0xFFFF9100).copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                    .clickable { fuelRepo.toggleObdConnection() }
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (isObdOnline) accent else Color(0xFFFF9100))
+                    )
+                    Text(
+                        text = if (isObdOnline) "ONLINE (OBD2/CAN)" else "OFFLINE / STANDALONE",
+                        color = if (isObdOnline) accent else Color(0xFFFF9100),
+                        fontSize = 9.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
                 }
             }
 
@@ -445,6 +484,7 @@ fun HomeScreen(
                     "ALTIMETER"   -> "ALTIMETER"
                     "SPEEDOMETER" -> "SPEED"
                     "TRIP_TRACKER" -> "TRIP"
+                    "FUEL_HUB"    -> "FUEL HUB"
                     "SOUNDBOARD"  -> "SOUND"
                     else          -> w.id
                 }
@@ -594,6 +634,12 @@ fun HomeScreen(
                             isDayMode = isDayMode,
                             modifier  = Modifier.fillMaxSize()
                         )
+                        "FUEL_HUB" -> FuelHubWidget(
+                            accent    = accent,
+                            isDayMode = isDayMode,
+                            onOpenRefuel = { showRefuelDialog = true },
+                            modifier  = Modifier.fillMaxSize()
+                        )
                         "SOUNDBOARD" -> SoundboardWidget(
                             pads      = settings.soundboardPads,
                             accent    = accent,
@@ -678,6 +724,13 @@ fun HomeScreen(
             onAdd     = { id -> onAddWidget(id) },
             onRemove  = { id -> onRemoveWidget(id) },
             onDismiss = { widgetLibraryOpen = false }
+        )
+    }
+
+    if (showRefuelDialog) {
+        com.hoopoe.launcher.ui.components.RefuelDialog(
+            accent = accent,
+            onDismiss = { showRefuelDialog = false }
         )
     }
 }
@@ -966,6 +1019,7 @@ private fun WidgetLibraryDialog(
         if (settings.showSpeedometer) add("SPEEDOMETER")
         if (settings.showVitals) add("VITALS")
         if (settings.showTripTracker) add("TRIP_TRACKER")
+        if (settings.showFuelHub) add("FUEL_HUB")
         if (settings.showSoundboard) add("SOUNDBOARD")
     }
     val canAdd = canAddWidget(settings)

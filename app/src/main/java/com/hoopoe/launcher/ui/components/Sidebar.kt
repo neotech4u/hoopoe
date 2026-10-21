@@ -43,7 +43,7 @@ import com.hoopoe.launcher.ui.theme.LocalDayMode
 import kotlin.math.roundToInt
 
 private val ICON_SIZE   = 24.dp
-private val SLOT_SIZE   = 60.dp
+private val SLOT_SIZE   = 64.dp
 
 @Composable
 fun Sidebar(
@@ -56,6 +56,7 @@ fun Sidebar(
     onShortcutRemove: (Int) -> Unit,
     onShortcutSetIcon: (Int, DefaultShortcutIcon?) -> Unit,
     onReorder: (from: Int, to: Int) -> Unit,
+    onOpenRefuel: () -> Unit = {},
     isHorizontal: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -127,6 +128,15 @@ fun Sidebar(
 
     val navButtons: @Composable () -> Unit = {
         NavButton(
+            icon         = Icons.Default.LocalGasStation,
+            label        = "Fuel",
+            isActive     = false,
+            accent       = accent,
+            iconInactive = iconInactive,
+            isHorizontal = isHorizontal,
+            onClick      = { onOpenRefuel() }
+        )
+        NavButton(
             icon         = Icons.Default.Apps,
             label        = "Apps",
             isActive     = currentDest == NavDestination.APP_LIBRARY,
@@ -185,11 +195,13 @@ fun Sidebar(
             ) {
                 if (!settings.bottomBarShortcutsRight) {
                     NavButton(Icons.Default.Home,     "Home",     currentDest == NavDestination.HOME,        accent, iconInactive, true) { onNavigate(NavDestination.HOME) }
+                    NavButton(Icons.Default.LocalGasStation, "Fuel", false, accent, iconInactive, true) { onOpenRefuel() }
                     NavButton(Icons.Default.Settings, "Settings", currentDest == NavDestination.SETTINGS,    accent, iconInactive, true) { onNavigate(NavDestination.SETTINGS) }
                     NavButton(Icons.Default.Apps,     "Apps",     currentDest == NavDestination.APP_LIBRARY, accent, iconInactive, true) { onNavigate(NavDestination.APP_LIBRARY) }
                 } else {
                     NavButton(Icons.Default.Apps,     "Apps",     currentDest == NavDestination.APP_LIBRARY, accent, iconInactive, true) { onNavigate(NavDestination.APP_LIBRARY) }
                     NavButton(Icons.Default.Settings, "Settings", currentDest == NavDestination.SETTINGS,    accent, iconInactive, true) { onNavigate(NavDestination.SETTINGS) }
+                    NavButton(Icons.Default.LocalGasStation, "Fuel", false, accent, iconInactive, true) { onOpenRefuel() }
                     NavButton(Icons.Default.Home,     "Home",     currentDest == NavDestination.HOME,        accent, iconInactive, true) { onNavigate(NavDestination.HOME) }
                 }
             }

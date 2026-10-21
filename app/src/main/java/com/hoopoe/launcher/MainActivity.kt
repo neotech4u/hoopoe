@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
             var showTravelDua by remember {
                 mutableStateOf(!hasShownTravelDuaSession && settings.showTravelDua)
             }
+            var showRefuelDialog by remember { mutableStateOf(false) }
 
             val accent         = Color(settings.accentColor)
             val bg             = if (settings.useCustomBackgroundColor) {
@@ -198,7 +199,8 @@ class MainActivity : ComponentActivity() {
                                     onShortcutLongPress  = { slot -> vm.startShortcutPicker(slot) },
                                     onShortcutRemove     = { slot -> vm.removeShortcut(slot) },
                                     onShortcutSetIcon    = { slot, icon -> vm.setShortcutIcon(slot, icon) },
-                                    onReorder            = { from, to -> vm.reorderShortcut(from, to) }
+                                    onReorder            = { from, to -> vm.reorderShortcut(from, to) },
+                                    onOpenRefuel         = { showRefuelDialog = true }
                                 )
                             }
                         }
@@ -313,6 +315,13 @@ class MainActivity : ComponentActivity() {
                                     sidebarContent()
                                 }
                             }
+                        }
+
+                        if (showRefuelDialog) {
+                            com.hoopoe.launcher.ui.components.RefuelDialog(
+                                accent = accent,
+                                onDismiss = { showRefuelDialog = false }
+                            )
                         }
                     }
                 }

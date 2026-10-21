@@ -61,6 +61,7 @@ class SettingsRepository(private val context: Context) {
         val USE_CUSTOM_BG_COLOR   = booleanPreferencesKey("use_custom_bg_color")
         val PLAY_LOGON_ANIMATION  = booleanPreferencesKey("play_logon_animation")
         val SHOW_TRAVEL_DUA       = booleanPreferencesKey("show_travel_dua")
+        val SHOW_FUEL_HUB         = booleanPreferencesKey("show_fuel_hub")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -138,7 +139,8 @@ class SettingsRepository(private val context: Context) {
                 gradientDirection = prefs[Keys.GRADIENT_DIRECTION]?.let { runCatching { GradientDirection.valueOf(it) }.getOrNull() } ?: defaults.gradientDirection,
                 useCustomBackgroundColor = prefs[Keys.USE_CUSTOM_BG_COLOR] ?: defaults.useCustomBackgroundColor,
                 playLogonAnimation       = prefs[Keys.PLAY_LOGON_ANIMATION] ?: defaults.playLogonAnimation,
-                showTravelDua            = prefs[Keys.SHOW_TRAVEL_DUA] ?: defaults.showTravelDua
+                showTravelDua            = prefs[Keys.SHOW_TRAVEL_DUA] ?: defaults.showTravelDua,
+                showFuelHub              = prefs[Keys.SHOW_FUEL_HUB] ?: defaults.showFuelHub
             )
     }
 
@@ -197,6 +199,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.USE_CUSTOM_BG_COLOR] = s.useCustomBackgroundColor
             prefs[Keys.PLAY_LOGON_ANIMATION]  = s.playLogonAnimation
             prefs[Keys.SHOW_TRAVEL_DUA]       = s.showTravelDua
+            prefs[Keys.SHOW_FUEL_HUB]         = s.showFuelHub
     }
 
     suspend fun resetToDefaults() {
