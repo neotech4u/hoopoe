@@ -50,6 +50,15 @@ Most modern aftermarket head units are running underpowered, resource-constraine
 - **Tap-to-Skip & Error Resilient:** Instant tap-to-skip support with fallback protection if the media engine encounters hardware decoder delays.
 - **Configurable in Settings:** Toggle the animation on/off at will, or use the **Preview Logon Animation** button in Settings to inspect playback.
 
+### 🏎️ Futuristic 3-Zone Automotive HUD Layout (1920x720 / 1920x1080)
+- **Zone 1 (Left - Driver Telemetry):** Pure GPS-driven digital speedometer (`KM/H` / `MPH`), interactive metric ring (Speed / RPM / Fuel), P-R-N-D gear selector, and a 60fps neon speed vs. time waveform graph.
+- **Zone 2 (Center - Neon Navigation HUD):** Cyber wireframe perspective vector road canvas with dynamic turn-by-turn guidance prompt ("IN 250 METERS"), vehicle silhouette, and direct 1-tap launcher for installed OSM (OsmAnd, Organic Maps) or Google Maps.
+- **Zone 3 (Right - Modular Glanceable Cards):**
+  - **Media Player & FM Radio Deck:** Tactile 48dp+ play/pause controls, album art, audio frequency spectrum visualizer, scrub timeline, and seamless 1-tap toggle between streaming media players and FM/AM hardware radio.
+  - **Trip & Fuel Telemetry Hub:** Dual-mode live trip telemetry (distance, economy, instant fuel cost) and visual fuel tank gauge with quick refuel log modal.
+- **Top Status Rail:** Live digital clock, weather temperature, WiFi/cellular telemetry, OBD-II/CAN link status badge, and **Jarvis AI Assistant Orb** (holographic arc-reactor with tap-to-voice Google Assistant).
+- **Travel Dua Modal:** Automatic Tamil & English travel dua display after logon animation with "Fi Aman Allah / Happy Journey" driver confirmation.
+
 ### 🚗 Ergonomics & Automotive Dashboard Customization
 - **Right-Hand Drive (RHD) Ready:** Default sidebar positioned on the **RIGHT** for intuitive driver reach in RHD markets (India, UK, Japan, Australia, etc.), with full toggle support for Left and Bottom configurations.
 - **Vehicle Customization:** Default car title preset to `DZIRE` with full custom name configuration.
