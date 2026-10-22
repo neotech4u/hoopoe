@@ -57,15 +57,16 @@ private data class WidgetTypeInfo(
 )
 
 private val ALL_WIDGET_TYPES = listOf(
+    WidgetTypeInfo("SPEEDOMETER", "SPEED",       Icons.Default.Speed,         "GPS speed"),
+    WidgetTypeInfo("NAV_MAP",     "NAVIGATION",  Icons.Default.Navigation,    "Neon Vector HUD & Turn Guidance"),
+    WidgetTypeInfo("NOW_PLAYING", "NOW PLAYING", Icons.Default.MusicNote,   "Media controls"),
+    WidgetTypeInfo("FUEL_HUB",     "FUEL & TRIP",  Icons.Default.LocalGasStation, "Trip & Fuel Telemetry Hub"),
     WidgetTypeInfo("CLOCK",       "CLOCK",       Icons.Default.AccessTime,  "Time & date"),
     WidgetTypeInfo("WEATHER",     "WEATHER",     Icons.Default.Cloud,       "Current conditions"),
-    WidgetTypeInfo("NOW_PLAYING", "NOW PLAYING", Icons.Default.MusicNote,   "Media controls"),
     WidgetTypeInfo("TELEMETRY",   "COMPASS",     Icons.Default.Explore,     "Speed & heading"),
     WidgetTypeInfo("ALTIMETER",   "ALTIMETER",   Icons.Default.FlightTakeoff, "Roll, pitch & altitude"),
-    WidgetTypeInfo("SPEEDOMETER", "SPEED",       Icons.Default.Speed,         "GPS speed"),
     WidgetTypeInfo("VITALS",      "VITALS",      Icons.Default.Dns,           "Head Unit Health / Vitals"),
     WidgetTypeInfo("TRIP_TRACKER", "TRIP TRACKER", Icons.Default.Map,          "Trip logs & stats"),
-    WidgetTypeInfo("FUEL_HUB",     "FUEL & TRIP",  Icons.Default.LocalGasStation, "Trip & Fuel Telemetry Hub"),
     WidgetTypeInfo("SOUNDBOARD",  "SOUNDBOARD",  Icons.Default.Piano,         "Custom sound pads")
 )
 
@@ -77,6 +78,7 @@ private fun canAddWidget(settings: com.hoopoe.launcher.data.AppSettings): Boolea
         if (settings.showTelemetry) add("TELEMETRY")
         if (settings.showAltimeter) add("ALTIMETER")
         if (settings.showSpeedometer) add("SPEEDOMETER")
+        if (settings.showNavMap) add("NAV_MAP")
         if (settings.showVitals) add("VITALS")
         if (settings.showTripTracker) add("TRIP_TRACKER")
         if (settings.showFuelHub) add("FUEL_HUB")
@@ -284,6 +286,15 @@ fun HomeScreen(
                 }
             }
 
+            Spacer(Modifier.width(10.dp))
+
+            // Jarvis Smart Assistant Arc-Reactor (Small, futuristic, tap triggers Google Assistant)
+            com.hoopoe.launcher.ui.components.JarvisOrb(
+                accent = accent,
+                orbSize = 32.dp,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+
             Spacer(Modifier.weight(1f))
 
             // Turn Signal Blinkers
@@ -407,6 +418,8 @@ fun HomeScreen(
                 if (settings.showTelemetry) add("TELEMETRY")
                 if (settings.showAltimeter) add("ALTIMETER")
                 if (settings.showSpeedometer) add("SPEEDOMETER")
+                if (settings.showNavMap) add("NAV_MAP")
+                if (settings.showFuelHub) add("FUEL_HUB")
                 if (settings.showVitals) add("VITALS")
                 if (settings.showTripTracker) add("TRIP_TRACKER")
                 if (settings.showSoundboard) add("SOUNDBOARD")
@@ -619,6 +632,13 @@ fun HomeScreen(
                             accent    = accent,
                             isDayMode = isDayMode,
                             digitalOnly = settings.speedometerDigitalOnly,
+                            modifier  = Modifier.fillMaxSize()
+                        )
+                        "NAV_MAP" -> NavigationMapWidget(
+                            location  = location,
+                            bearing   = (bearing + settings.compassOffset + 360f) % 360f,
+                            accent    = accent,
+                            isDayMode = isDayMode,
                             modifier  = Modifier.fillMaxSize()
                         )
                         "VITALS" -> VitalsWidget(
@@ -1017,6 +1037,7 @@ private fun WidgetLibraryDialog(
         if (settings.showTelemetry) add("TELEMETRY")
         if (settings.showAltimeter) add("ALTIMETER")
         if (settings.showSpeedometer) add("SPEEDOMETER")
+        if (settings.showNavMap) add("NAV_MAP")
         if (settings.showVitals) add("VITALS")
         if (settings.showTripTracker) add("TRIP_TRACKER")
         if (settings.showFuelHub) add("FUEL_HUB")

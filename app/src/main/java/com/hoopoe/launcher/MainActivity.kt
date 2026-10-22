@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
                                         onLaunchPip         = { vm.launchApp(settings.pipAppPackage) },
                                         onTapNowPlaying     = {
                                             val pkg = nowPlaying?.controller?.packageName
-                                            if (!pkg.isNullOrEmpty()) vm.launchApp(pkg)
+                                            if (!pkg.isNullOrEmpty()) vm.launchApp(pkg) else vm.launchMusicApp()
                                         },
                                         onUpdateWidget      = { id, sx, sy -> vm.updateWidgetConfig(id, sx, sy) },
                                         onMoveWidget        = { id, gx, gy -> vm.moveWidgetConfig(id, gx, gy) },

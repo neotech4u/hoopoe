@@ -62,6 +62,7 @@ class SettingsRepository(private val context: Context) {
         val PLAY_LOGON_ANIMATION  = booleanPreferencesKey("play_logon_animation")
         val SHOW_TRAVEL_DUA       = booleanPreferencesKey("show_travel_dua")
         val SHOW_FUEL_HUB         = booleanPreferencesKey("show_fuel_hub")
+        val SHOW_NAV_MAP          = booleanPreferencesKey("show_nav_map")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -88,8 +89,10 @@ class SettingsRepository(private val context: Context) {
                         object : TypeToken<List<WidgetConfig>>() {}.type
                     )
                 }.getOrNull() ?: defaults.widgetLayout
-                // Migrate: old 2×2 layout has no widget with gridX≥2 — replace with new 3×2 default
-                if (loaded.none { it.gridX >= 2 }) defaults.widgetLayout else loaded
+                // Migrate: ensure HUD has NAV_MAP and FUEL_HUB in the modern 3x2 zone layout
+                if (loaded.none { it.id == "NAV_MAP" } || loaded.none { it.id == "FUEL_HUB" } || loaded.none { it.gridX >= 2 }) {
+                    defaults.widgetLayout
+                } else loaded
             } else defaults.widgetLayout
 
             return AppSettings(
@@ -140,7 +143,8 @@ class SettingsRepository(private val context: Context) {
                 useCustomBackgroundColor = prefs[Keys.USE_CUSTOM_BG_COLOR] ?: defaults.useCustomBackgroundColor,
                 playLogonAnimation       = prefs[Keys.PLAY_LOGON_ANIMATION] ?: defaults.playLogonAnimation,
                 showTravelDua            = prefs[Keys.SHOW_TRAVEL_DUA] ?: defaults.showTravelDua,
-                showFuelHub              = prefs[Keys.SHOW_FUEL_HUB] ?: defaults.showFuelHub
+                showFuelHub              = prefs[Keys.SHOW_FUEL_HUB] ?: defaults.showFuelHub,
+                showNavMap               = prefs[Keys.SHOW_NAV_MAP] ?: defaults.showNavMap
             )
     }
 
@@ -200,6 +204,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.PLAY_LOGON_ANIMATION]  = s.playLogonAnimation
             prefs[Keys.SHOW_TRAVEL_DUA]       = s.showTravelDua
             prefs[Keys.SHOW_FUEL_HUB]         = s.showFuelHub
+            prefs[Keys.SHOW_NAV_MAP]          = s.showNavMap
     }
 
     suspend fun resetToDefaults() {

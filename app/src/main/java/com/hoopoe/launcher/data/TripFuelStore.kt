@@ -176,21 +176,11 @@ class TripFuelRepository private constructor(context: Context) {
             }
 
         fun playTactileBeep() {
-            try {
-                ToneGenerator(AudioManager.STREAM_NOTIFICATION, 70).apply {
-                    startTone(ToneGenerator.TONE_PROP_BEEP, 40)
-                    release()
-                }
-            } catch (_: Exception) {}
+            // Intentionally silent / no-op to prevent ToneGenerator audio server crash on automotive head units
         }
 
         fun playConfirmBeep() {
-            try {
-                ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85).apply {
-                    startTone(ToneGenerator.TONE_PROP_ACK, 80)
-                    release()
-                }
-            } catch (_: Exception) {}
+            // Intentionally silent / no-op to prevent ToneGenerator audio server crash on automotive head units
         }
     }
 }

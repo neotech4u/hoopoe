@@ -55,14 +55,13 @@ fun SpeedometerWidget(
     // Interactive Gear State (Defaults to Drive "D")
     var currentGear by remember { mutableStateOf("D") }
 
-    // Rolling Speed Telemetry History for Futuristic Neon Graph
-    val speedHistory = remember { mutableStateListOf<Float>().apply { repeat(25) { add(0f) } } }
+    // Rolling Speed Telemetry History for Futuristic Neon Graph (Immutable List - Thread Safe)
+    var speedHistory by remember { mutableStateOf(List(25) { 0f }) }
     var peakSpeed by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(speedDisplay) {
         if (speedDisplay > peakSpeed) peakSpeed = speedDisplay
-        if (speedHistory.size >= 25) speedHistory.removeAt(0)
-        speedHistory.add(speedDisplay)
+        speedHistory = (speedHistory.drop(1) + speedDisplay)
     }
 
     val simulatedRpm = (speedDisplay * 36f + 850f).coerceIn(850f, 6800f)
@@ -224,7 +223,7 @@ fun SpeedometerWidget(
                         fontFamily    = FontFamily.Monospace
                     )
                     Text(
-                        text          = displayUnit,
+                        text          = if (metricMode == "SPEED") "GPS $displayUnit" else displayUnit,
                         color         = gaugeColor,
                         fontSize      = 9.5.sp,
                         fontWeight    = FontWeight.Bold,
@@ -276,15 +275,16 @@ fun SpeedometerWidget(
                 ) {
                     val w = size.width
                     val h = size.height
-                    if (speedHistory.size < 2 || w <= 0 || h <= 0) return@Canvas
+                    val points = speedHistory
+                    if (points.size < 2 || w <= 0 || h <= 0) return@Canvas
 
-                    val stepX = w / (speedHistory.size - 1)
+                    val stepX = w / (points.size - 1)
                     val maxValGraph = maxOf(maxSpeed, 100f)
 
                     val linePath = Path()
                     val areaPath = Path()
 
-                    speedHistory.forEachIndexed { i, spd ->
+                    points.forEachIndexed { i, spd ->
                         val x = i * stepX
                         val y = h - (spd / maxValGraph).coerceIn(0f, 1f) * (h - 4.dp.toPx()) - 2.dp.toPx()
                         if (i == 0) {

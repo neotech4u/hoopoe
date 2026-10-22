@@ -136,48 +136,37 @@ fun NowPlayingWidget(
             )
         }
 
-        // 2. FLOATING MULTI-SOURCE SELECTOR (Top-Right, always overlayed)
-        var menuExpanded by remember { mutableStateOf(false) }
-        val selectorIconColor = if (isDayMode) Color.Black.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-        
+        // 2. QUICK SOURCE TOGGLE (Top-Right, always overlayed)
+        val isRadio = selectedSource == "FM/AM Radio"
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(end = 4.dp, top = 4.dp)
+                .padding(end = 8.dp, top = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (isRadio) accent.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.45f))
+                .border(1.dp, if (isRadio) accent else Color(0xFF243048), RoundedCornerShape(8.dp))
+                .clickable {
+                    selectedSource = if (isRadio) "Any Player" else "FM/AM Radio"
+                }
+                .padding(horizontal = 7.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
         ) {
-            IconButton(
-                onClick = { menuExpanded = true },
-                modifier = Modifier.size(24.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Source Selector",
-                    tint = selectorIconColor,
-                    modifier = Modifier.size(16.dp)
+                    imageVector = if (isRadio) Icons.Default.MusicNote else Icons.Default.Radio,
+                    contentDescription = null,
+                    tint = if (isRadio) accent else Color(0xFF94A3B8),
+                    modifier = Modifier.size(11.dp)
                 )
-            }
-            val dropdownBg   = if (isDayMode) Color(0xFFF0F0F0) else MaterialTheme.colorScheme.background
-            val dropdownText = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-                modifier = Modifier.background(dropdownBg)
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Any Player", color = dropdownText, fontSize = 11.sp) },
-                    onClick = {
-                        selectedSource = "Any Player"
-                        menuExpanded = false
-                    },
-                    leadingIcon = { Icon(Icons.Default.MusicNote, null, tint = accent, modifier = Modifier.size(14.dp)) }
-                )
-                DropdownMenuItem(
-                    text = { Text("FM/AM Radio", color = dropdownText, fontSize = 11.sp) },
-                    onClick = {
-                        selectedSource = "FM/AM Radio"
-                        menuExpanded = false
-                    },
-                    leadingIcon = { Icon(Icons.Default.Radio, null, tint = accent, modifier = Modifier.size(14.dp)) }
+                Text(
+                    text = if (isRadio) "PLAYER" else "FM RADIO",
+                    color = if (isRadio) accent else Color(0xFFCBD5E1),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
                 )
             }
         }
@@ -538,64 +527,104 @@ private fun StandardMinimalPlayer(
 
     Box(modifier = modifier) {
         if (!hasContent) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                if (hasCarPlay || hasAutoApp) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                // Top: Album cover placeholder + Track info (clickable to open music app)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .let { if (!isEditing) it.clickable { onTapToOpenApp() } else it },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(accent.copy(alpha = 0.15f))
+                            .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (hasCarPlay) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .let { if (!isEditing) it.clickable { onLaunchCarPlay() } else it }
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(Icons.Default.PhoneAndroid, null, tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
-                                    Text("CARPLAY", color = accent.copy(alpha = 0.6f), fontSize = 8.sp, letterSpacing = 2.sp)
-                                }
-                            }
-                        }
-                        if (hasCarPlay && hasAutoApp) {
-                            androidx.compose.material3.VerticalDivider(
-                                modifier = Modifier.fillMaxHeight().padding(vertical = 16.dp),
-                                color = if (isDayMode) Color(0xFFBBBBBB) else Color(0xFF1E1E1E)
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Ready to Play",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = contentTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Touch to launch media player",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = subTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 10.5.sp
+                        )
+                    }
+                }
+
+                // Ambient Equalizer Bars
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .padding(vertical = 2.dp)
+                ) {
+                    val barCount = 20
+                    val spacing = 2.dp.toPx()
+                    val barWidth = (size.width - (barCount - 1) * spacing) / barCount
+                    for (i in 0 until barCount) {
+                        drawRect(
+                            color = accent.copy(alpha = 0.25f),
+                            topLeft = androidx.compose.ui.geometry.Offset(i * (barWidth + spacing), size.height - 2.5.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(barWidth, 2.5.dp.toPx())
+                        )
+                    }
+                }
+
+                // Bottom: Playback Controls (Prev, 48dp Play, Next)
+                Row(
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                ) {
+                    IconButton(onClick = { if (!isEditing) onPrev() }, modifier = Modifier.size(42.dp)) {
+                        Icon(Icons.Default.SkipPrevious, "Prev", tint = contentTextColor.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
+                    }
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(accent)
+                    ) {
+                        IconButton(onClick = { if (!isEditing) { onPlayPause(); onTapToOpenApp() } }, modifier = Modifier.size(48.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color(0xFF07090E),
+                                modifier = Modifier.size(26.dp)
                             )
                         }
-                        if (hasAutoApp) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .let { if (!isEditing) it.clickable { onLaunchAndroidAuto() } else it }
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(Icons.Default.DirectionsCar, null, tint = accent.copy(alpha = 0.7f), modifier = Modifier.size(28.dp))
-                                    Text("ANDROID AUTO", color = accent.copy(alpha = 0.6f), fontSize = 8.sp, letterSpacing = 2.sp)
-                                }
-                            }
-                        }
                     }
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(Icons.Default.MusicNote, null, tint = idleIconColor, modifier = Modifier.size(24.dp))
-                        Text("NO MEDIA PLAYING", color = idleTextColor, fontSize = 7.sp, letterSpacing = 1.sp)
+                    IconButton(onClick = { if (!isEditing) onNext() }, modifier = Modifier.size(42.dp)) {
+                        Icon(Icons.Default.SkipNext, "Next", tint = contentTextColor.copy(alpha = 0.7f), modifier = Modifier.size(24.dp))
                     }
                 }
             }

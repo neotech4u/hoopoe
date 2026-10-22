@@ -89,6 +89,8 @@ data class AppSettings(
     val bottomBarShortcutsRight: Boolean = false,
     val showAltimeter: Boolean = false,
     val showSpeedometer: Boolean = true,
+    val showNavMap: Boolean = true,
+    val showFuelHub: Boolean = true,
     val dayNightMode: DayNightMode = DayNightMode.DARK,
     val showPip: Boolean = false,
     val pipAppPackage: String = "",
@@ -105,8 +107,7 @@ data class AppSettings(
     val gradientDirection: GradientDirection = GradientDirection.DIAGONAL,
     val useCustomBackgroundColor: Boolean = false,
     val playLogonAnimation: Boolean = true,
-    val showTravelDua: Boolean = true,
-    val showFuelHub: Boolean = false
+    val showTravelDua: Boolean = true
 )
 
 fun defaultShortcuts() = listOf(
@@ -120,24 +121,26 @@ fun defaultShortcuts() = listOf(
 fun defaultWidgetLayout() = listOf(
     // Zone 1 (Left): Driver Telemetry Speedometer & Gauge Cluster (1x2)
     WidgetConfig("SPEEDOMETER", gridX = 0, gridY = 0, spanX = 1, spanY = 2),
-    // Zone 2 (Center): Digital Clock & Weather Instruments (1x1 each)
-    WidgetConfig("CLOCK",       gridX = 1, gridY = 0, spanX = 1, spanY = 1),
-    WidgetConfig("WEATHER",     gridX = 1, gridY = 1, spanX = 1, spanY = 1),
-    // Zone 3 (Right): Modular Glanceable Media Deck (1x2)
-    WidgetConfig("NOW_PLAYING", gridX = 2, gridY = 0, spanX = 1, spanY = 2)
+    // Zone 2 (Center): Dynamic Visualizer & Neon Vector Navigation Map (1x2)
+    WidgetConfig("NAV_MAP",     gridX = 1, gridY = 0, spanX = 1, spanY = 2),
+    // Zone 3 (Right - Top): Modular Glanceable Media Player & FM Radio Card (1x1)
+    WidgetConfig("NOW_PLAYING", gridX = 2, gridY = 0, spanX = 1, spanY = 1),
+    // Zone 3 (Right - Bottom): Smart Fuel & Live Trip Telemetry Hub (1x1)
+    WidgetConfig("FUEL_HUB",    gridX = 2, gridY = 1, spanX = 1, spanY = 1)
 )
 
 fun AppSettings.activeWidgetIds(): Set<String> = buildSet {
+    if (showSpeedometer) add("SPEEDOMETER")
+    if (showNavMap) add("NAV_MAP")
+    if (showNowPlaying) add("NOW_PLAYING")
+    if (showFuelHub) add("FUEL_HUB")
     if (showClock) add("CLOCK")
     if (showWeather) add("WEATHER")
-    if (showNowPlaying) add("NOW_PLAYING")
     if (showTelemetry) add("TELEMETRY")
     if (showAltimeter) add("ALTIMETER")
-    if (showSpeedometer) add("SPEEDOMETER")
     if (showVitals) add("VITALS")
     if (showTripTracker) add("TRIP_TRACKER")
     if (showSoundboard) add("SOUNDBOARD")
-    if (showFuelHub) add("FUEL_HUB")
 }
 
 /**

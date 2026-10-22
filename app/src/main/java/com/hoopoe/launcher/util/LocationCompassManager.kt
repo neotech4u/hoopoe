@@ -73,7 +73,18 @@ class LocationCompassManager(context: Context) {
                 longitude = loc.longitude,
                 altitude  = loc.altitude,
                 accuracy  = loc.accuracy,
-                speedMps  = if (loc.hasSpeed()) loc.speed else 0f
+                speedMps  = if (loc.hasSpeed() && loc.speed >= 0f) {
+                    loc.speed
+                } else {
+                    val lastLoc = lastLocationForBearing
+                    if (lastLoc != null && loc.time > lastLoc.time) {
+                        val dtSec = (loc.time - lastLoc.time) / 1000f
+                        if (dtSec in 0.4f..10f) {
+                            val distM = lastLoc.distanceTo(loc)
+                            if (distM > 1.5f) distM / dtSec else 0f
+                        } else 0f
+                    } else 0f
+                }
             )
 
             // 1. If GPS has a hardware-computed bearing, use it (works offline)
