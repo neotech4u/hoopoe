@@ -57,17 +57,18 @@ private data class WidgetTypeInfo(
 )
 
 private val ALL_WIDGET_TYPES = listOf(
-    WidgetTypeInfo("SPEEDOMETER", "SPEED",       Icons.Default.Speed,         "GPS speed"),
-    WidgetTypeInfo("NAV_MAP",     "NAVIGATION",  Icons.Default.Navigation,    "Neon Vector HUD & Turn Guidance"),
-    WidgetTypeInfo("NOW_PLAYING", "NOW PLAYING", Icons.Default.MusicNote,   "Media controls"),
+    WidgetTypeInfo("SPEEDOMETER",  "SPEEDOMETER",  Icons.Default.Speed,         "Standalone GPS speed readout"),
+    WidgetTypeInfo("NAV_MAP",      "MAP (AUTO)",   Icons.Default.Navigation,    "Live embedded OpenStreetMap & GPS tracker"),
+    WidgetTypeInfo("NOW_PLAYING",  "SMART MUSIC",  Icons.Default.MusicNote,     "Track metadata, art & playback controls"),
+    WidgetTypeInfo("RADIO",        "AM/FM RADIO",  Icons.Default.Radio,         "Digital tuner display & live seek"),
     WidgetTypeInfo("FUEL_HUB",     "FUEL & TRIP",  Icons.Default.LocalGasStation, "Trip & Fuel Telemetry Hub"),
-    WidgetTypeInfo("CLOCK",       "CLOCK",       Icons.Default.AccessTime,  "Time & date"),
-    WidgetTypeInfo("WEATHER",     "WEATHER",     Icons.Default.Cloud,       "Current conditions"),
-    WidgetTypeInfo("TELEMETRY",   "COMPASS",     Icons.Default.Explore,     "Speed & heading"),
-    WidgetTypeInfo("ALTIMETER",   "ALTIMETER",   Icons.Default.FlightTakeoff, "Roll, pitch & altitude"),
-    WidgetTypeInfo("VITALS",      "VITALS",      Icons.Default.Dns,           "Head Unit Health / Vitals"),
-    WidgetTypeInfo("TRIP_TRACKER", "TRIP TRACKER", Icons.Default.Map,          "Trip logs & stats"),
-    WidgetTypeInfo("SOUNDBOARD",  "SOUNDBOARD",  Icons.Default.Piano,         "Custom sound pads")
+    WidgetTypeInfo("TRIP_TRACKER", "TRIP METER",   Icons.Default.Route,         "Rolling odometer & 0-100 timer"),
+    WidgetTypeInfo("ALTIMETER",    "ALTIMETER",    Icons.Default.FlightTakeoff, "Elevation & GPS pitch/roll"),
+    WidgetTypeInfo("VITALS",       "UNIT VITALS",  Icons.Default.Dns,           "Real-time CPU, RAM & temperature"),
+    WidgetTypeInfo("TELEMETRY",    "GPS COMPASS",  Icons.Default.Explore,       "Heading & compass bearing"),
+    WidgetTypeInfo("SOUNDBOARD",   "SOUNDBOARD",   Icons.Default.Piano,         "6 assignable sound & synth pads"),
+    WidgetTypeInfo("WEATHER",      "WEATHER",      Icons.Default.Cloud,         "Dynamic connectivity weather"),
+    WidgetTypeInfo("CLOCK",        "CLOCK",        Icons.Default.AccessTime,    "Large digital/analog clock")
 )
 
 private fun canAddWidget(settings: com.hoopoe.launcher.data.AppSettings): Boolean {
@@ -75,6 +76,7 @@ private fun canAddWidget(settings: com.hoopoe.launcher.data.AppSettings): Boolea
         if (settings.showClock) add("CLOCK")
         if (settings.showWeather) add("WEATHER")
         if (settings.showNowPlaying) add("NOW_PLAYING")
+        if (settings.showRadio) add("RADIO")
         if (settings.showTelemetry) add("TELEMETRY")
         if (settings.showAltimeter) add("ALTIMETER")
         if (settings.showSpeedometer) add("SPEEDOMETER")
@@ -415,6 +417,7 @@ fun HomeScreen(
                 if (settings.showClock) add("CLOCK")
                 if (settings.showWeather) add("WEATHER")
                 if (settings.showNowPlaying) add("NOW_PLAYING")
+                if (settings.showRadio) add("RADIO")
                 if (settings.showTelemetry) add("TELEMETRY")
                 if (settings.showAltimeter) add("ALTIMETER")
                 if (settings.showSpeedometer) add("SPEEDOMETER")
@@ -612,6 +615,24 @@ fun HomeScreen(
                             onRadioTune           = onRadioTune,
                             onAssignRadio         = onAssignRadio
                         )
+                        "RADIO" -> Box(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            RadioDeck(
+                                accent = accent,
+                                isDayMode = isDayMode,
+                                hardwareRadio = hardwareRadio,
+                                onLaunchHardwareRadio = onLaunchHardwareRadio,
+                                onStopHardwareRadio = onStopHardwareRadio,
+                                onRadioSeekUp = onRadioSeekUp,
+                                onRadioSeekDown = onRadioSeekDown,
+                                onRadioCycleFm = onRadioCycleFm,
+                                onRadioSwitchAm = onRadioSwitchAm,
+                                onRadioTune = onRadioTune,
+                                onAssignRadio = onAssignRadio,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         "TELEMETRY" -> TelemetryWidget(
                             location  = location,
                             bearing   = (bearing + settings.compassOffset + 360f) % 360f,
@@ -1034,6 +1055,7 @@ private fun WidgetLibraryDialog(
         if (settings.showClock) add("CLOCK")
         if (settings.showWeather) add("WEATHER")
         if (settings.showNowPlaying) add("NOW_PLAYING")
+        if (settings.showRadio) add("RADIO")
         if (settings.showTelemetry) add("TELEMETRY")
         if (settings.showAltimeter) add("ALTIMETER")
         if (settings.showSpeedometer) add("SPEEDOMETER")

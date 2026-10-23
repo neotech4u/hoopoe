@@ -227,6 +227,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 "CLOCK"       -> copy(showClock = true)
                 "WEATHER"     -> copy(showWeather = true)
                 "NOW_PLAYING" -> copy(showNowPlaying = true)
+                "RADIO"       -> copy(showRadio = true)
                 "TELEMETRY"   -> copy(showTelemetry = true)
                 "ALTIMETER"   -> copy(showAltimeter = true)
                 "SPEEDOMETER" -> copy(showSpeedometer = true)
@@ -260,6 +261,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 "CLOCK"       -> copy(showClock = false)
                 "WEATHER"     -> copy(showWeather = false)
                 "NOW_PLAYING" -> copy(showNowPlaying = false)
+                "RADIO"       -> copy(showRadio = false)
                 "TELEMETRY"   -> copy(showTelemetry = false)
                 "ALTIMETER"   -> copy(showAltimeter = false)
                 "SPEEDOMETER" -> copy(showSpeedometer = false)
@@ -465,16 +467,42 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val nowPlaying: StateFlow<NowPlayingState?> = MediaListenerService.nowPlaying
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun playPause() { nowPlaying.value?.controller?.also { ctrl ->
-        val state = ctrl.playbackState?.state
-        if (state == android.media.session.PlaybackState.STATE_PLAYING)
-            ctrl.transportControls?.pause()
-        else
-            ctrl.transportControls?.play()
-    }}
+    fun playPause() {
+        val ctrl = nowPlaying.value?.controller
+        if (ctrl != null) {
+            val state = ctrl.playbackState?.state
+            if (state == android.media.session.PlaybackState.STATE_PLAYING)
+                ctrl.transportControls?.pause()
+            else
+                ctrl.transportControls?.play()
+        } else {
+            val am = getApplication<Application>().getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+            am?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+            am?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+        }
+    }
 
-    fun skipNext() { nowPlaying.value?.controller?.transportControls?.skipToNext() }
-    fun skipPrev() { nowPlaying.value?.controller?.transportControls?.skipToPrevious() }
+    fun skipNext() {
+        val ctrl = nowPlaying.value?.controller
+        if (ctrl != null) {
+            ctrl.transportControls?.skipToNext()
+        } else {
+            val am = getApplication<Application>().getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+            am?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_NEXT))
+            am?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_NEXT))
+        }
+    }
+
+    fun skipPrev() {
+        val ctrl = nowPlaying.value?.controller
+        if (ctrl != null) {
+            ctrl.transportControls?.skipToPrevious()
+        } else {
+            val am = getApplication<Application>().getSystemService(android.content.Context.AUDIO_SERVICE) as? android.media.AudioManager
+            am?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+            am?.dispatchMediaKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+        }
+    }
 
     // ── Weather ───────────────────────────────────────────────────────────────
     private val _weather = MutableStateFlow<WeatherState?>(null)

@@ -2,9 +2,11 @@ package com.hoopoe.launcher.ui.widget
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.net.Uri
 import android.view.SoundEffectConstants
-import androidx.compose.animation.core.*
+import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,32 +15,39 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.filled.TurnRight
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.hoopoe.launcher.util.LocationData
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import java.io.File
 
+/**
+ * Android Auto (Coolwalk) style Embedded Live Map Widget.
+ * Runs an actual interactive OpenStreetMap MapView directly inside the HUD slot.
+ * Continuously tracks car GPS coordinates, centers on the vehicle, rotates vehicle marker,
+ * and provides in-map zoom/recenter tactile buttons and one-tap launch to full navigation apps.
+ */
 @Composable
 fun NavigationMapWidget(
     location: LocationData?,
@@ -49,317 +58,300 @@ fun NavigationMapWidget(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
-    val contentColor = if (isDayMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val cardBorder = if (isDayMode) Color(0xFFCBD5E1) else Color(0xFF243048)
 
-    // 60FPS Perspective Road Animation
-    val infiniteTransition = rememberInfiniteTransition(label = "road_anim")
-    val roadOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "road_offset"
-    )
+    val hasGps = location != null && location.latitude != 0.0 && location.longitude != 0.0
+    val currentLat = if (hasGps) location!!.latitude else 28.6139 // Default center if GPS not yet locked
+    val currentLon = if (hasGps) location!!.longitude else 77.2090
 
-    val radarPulse by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "radar_pulse"
-    )
+    var isFollowing by remember { mutableStateOf(true) }
+    var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
+
+    // Initialize osmdroid storage configuration safely for Android 10+
+    remember {
+        try {
+            val config = Configuration.getInstance()
+            config.osmdroidBasePath = context.noBackupFilesDir
+            config.osmdroidTileCache = File(context.cacheDir, "osmdroid")
+            config.userAgentValue = context.packageName
+        } catch (_: Exception) {}
+        true
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .clip(RoundedCornerShape(16.dp))
-            .clickable {
-                view.playSoundEffect(SoundEffectConstants.CLICK)
-                launchNavApp(context)
-            }
+            .border(1.dp, if (isDayMode) Color(0xFFCBD5E1) else Color(0xFF243048), RoundedCornerShape(16.dp))
     ) {
-        // 1. Perspective Wireframe Road Canvas
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            if (w <= 0 || h <= 0) return@Canvas
+        // ── 1. Real Embedded OpenStreetMap Native View ────────────────────────
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                MapView(ctx).apply {
+                    setTileSource(TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                    isTilesScaledToDpi = true
+                    setBuiltInZoomControls(false)
+                    controller.setZoom(16.5)
 
-            val horizon = h * 0.40f
-            val centerX = w * 0.5f
+                    val startPoint = GeoPoint(currentLat, currentLon)
+                    controller.setCenter(startPoint)
 
-            // Ground grid lines
-            for (y in (horizon.toInt()..h.toInt() step 22)) {
-                drawLine(
-                    color = accent.copy(alpha = 0.05f),
-                    start = Offset(0f, y.toFloat()),
-                    end = Offset(w, y.toFloat()),
-                    strokeWidth = 1.dp.toPx()
-                )
-            }
+                    // Automotive OLED Night Mode Filter
+                    if (!isDayMode) {
+                        val nightMatrix = ColorMatrix(floatArrayOf(
+                            -0.78f, 0f, 0f, 0f, 220f,
+                            0f, -0.78f, 0f, 0f, 225f,
+                            0f, 0f, -0.78f, 0f, 240f,
+                            0f, 0f, 0f, 1f, 0f
+                        ))
+                        overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(nightMatrix))
+                    }
 
-            // Road trapezoid
-            val topRoadW = w * 0.12f
-            val botRoadW = w * 0.76f
-
-            val pLeftTop = Offset(centerX - topRoadW, horizon)
-            val pRightTop = Offset(centerX + topRoadW, horizon)
-            val pLeftBot = Offset(centerX - botRoadW, h)
-            val pRightBot = Offset(centerX + botRoadW, h)
-
-            val roadPath = Path().apply {
-                moveTo(pLeftTop.x, pLeftTop.y)
-                lineTo(pRightTop.x, pRightTop.y)
-                lineTo(pRightBot.x, pRightBot.y)
-                lineTo(pLeftBot.x, pLeftBot.y)
-                close()
-            }
-
-            drawPath(
-                path = roadPath,
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0F141F).copy(alpha = 0.4f), Color(0xFF07090E).copy(alpha = 0.95f)),
-                    startY = horizon,
-                    endY = h
-                )
-            )
-
-            // Neon Glowing Road Borders
-            drawLine(
-                color = accent.copy(alpha = 0.85f),
-                start = pLeftTop,
-                end = pLeftBot,
-                strokeWidth = 2.5.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-            drawLine(
-                color = accent.copy(alpha = 0.85f),
-                start = pRightTop,
-                end = pRightBot,
-                strokeWidth = 2.5.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-
-            // Animated Center Lane Dash Lines
-            for (i in 0..7) {
-                val t = ((i * 0.15f + (roadOffset * 0.15f)) % 1f)
-                if (t > 0.05f && t < 0.95f) {
-                    val y1 = horizon + (t * t) * (h - horizon)
-                    val y2 = horizon + (minOf(1f, t + 0.06f) * minOf(1f, t + 0.06f)) * (h - horizon)
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.45f),
-                        start = Offset(centerX, y1),
-                        end = Offset(centerX, y2),
-                        strokeWidth = 2.dp.toPx()
-                    )
+                    mapViewInstance = this
+                }
+            },
+            update = { map ->
+                if (hasGps && isFollowing) {
+                    val geoPoint = GeoPoint(currentLat, currentLon)
+                    map.controller.animateTo(geoPoint)
                 }
             }
+        )
 
-            // Vehicle Silhouette & Radar Pulse at Bottom Center
-            val carY = h - 48.dp.toPx()
-            val carW = 38.dp.toPx()
-            val carH = 58.dp.toPx()
+        // Manage MapView Lifecycle
+        DisposableEffect(mapViewInstance) {
+            val map = mapViewInstance
+            map?.onResume()
+            onDispose {
+                map?.onPause()
+                map?.onDetach()
+            }
+        }
 
-            // Radar pulse ring
-            val rRadius = 24.dp.toPx() + (radarPulse * 28.dp.toPx())
-            drawArc(
-                color = accent.copy(alpha = (1f - radarPulse) * 0.5f),
-                startAngle = 200f,
-                sweepAngle = 140f,
-                useCenter = false,
-                topLeft = Offset(centerX - rRadius, carY - rRadius * 0.3f),
-                size = androidx.compose.ui.geometry.Size(rRadius * 2f, rRadius * 2f),
-                style = Stroke(width = 1.5.dp.toPx())
-            )
+        // ── 2. Live Vehicle Marker Overlay (Center of Map) ────────────────────
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(46.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Ambient GPS pulse halo
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    color = accent.copy(alpha = 0.22f),
+                    radius = size.minDimension / 2f
+                )
+                drawCircle(
+                    color = accent.copy(alpha = 0.85f),
+                    radius = size.minDimension / 4.5f
+                )
+            }
 
-            // Vehicle Body Silhouette
-            drawRoundRect(
-                color = Color(0xFF0F141F),
-                topLeft = Offset(centerX - carW / 2f, carY),
-                size = androidx.compose.ui.geometry.Size(carW, carH),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx(), 10.dp.toPx())
-            )
-            drawRoundRect(
-                color = accent,
-                topLeft = Offset(centerX - carW / 2f, carY),
-                size = androidx.compose.ui.geometry.Size(carW, carH),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx(), 10.dp.toPx()),
-                style = Stroke(width = 1.5.dp.toPx())
-            )
-
-            // Neon Headlights
-            drawRect(
-                color = accent,
-                topLeft = Offset(centerX - carW / 2f + 4.dp.toPx(), carY + 3.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(7.dp.toPx(), 3.dp.toPx())
-            )
-            drawRect(
-                color = accent,
-                topLeft = Offset(centerX + carW / 2f - 11.dp.toPx(), carY + 3.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(7.dp.toPx(), 3.dp.toPx())
+            // Directional Vehicle Arrow rotated to bearing
+            Icon(
+                imageVector = Icons.Default.Navigation,
+                contentDescription = "Vehicle Heading",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(26.dp)
+                    .rotate(bearing)
             )
         }
 
-        // 2. Turn-by-Turn Guidance Banner Overlay (Top)
-        Column(
+        // ── 3. Top Status & Navigation Rail ────────────────────────────────────
+        Row(
             modifier = Modifier
-                .fillMaxSize()
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
                 .padding(10.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Guidance Banner
-            Row(
+            // GPS Location / Direction Pill
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0F141F).copy(alpha = 0.90f))
-                    .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .background(Color(0xFF0F141F).copy(alpha = 0.88f))
+                    .border(1.dp, Color(0xFF243048), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(accent.copy(alpha = 0.15f))
-                        .border(1.dp, accent, RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        Icons.Default.TurnRight,
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "IN 250 METERS",
-                        color = accent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(if (hasGps) Color(0xFF00E676) else Color(0xFFFF9100))
                     )
                     Text(
-                        text = "Turn Right onto Expressway",
-                        color = contentColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Speed Limit Badge (80)
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(3.dp, Color(0xFFFF1744), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "80",
-                        color = Color(0xFF1E293B),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-
-            // Bottom Action Bar: Open OSM / Maps
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Open Maps Quick Button
-                Button(
-                    onClick = {
-                        view.playSoundEffect(SoundEffectConstants.CLICK)
-                        launchNavApp(context)
-                    },
-                    modifier = Modifier.height(38.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = accent),
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Explore,
-                        contentDescription = null,
-                        tint = Color(0xFF07090E),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "OPEN OSM / MAPS",
-                        color = Color(0xFF07090E),
-                        fontSize = 11.sp,
+                        text = if (hasGps) "GPS LOCKED" else "ACQUIRING GPS",
+                        color = if (hasGps) Color(0xFF00E676) else Color(0xFFFF9100),
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
                     )
-                }
-
-                // ADAS Status Indicator
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF0F141F).copy(alpha = 0.85f))
-                        .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(accent)
-                        )
-                        Text(
-                            text = "LANE PILOT",
-                            color = accent,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Text(
+                        text = "•",
+                        color = Color(0xFF64748B),
+                        fontSize = 9.sp
+                    )
+                    Text(
+                        text = getHeadingDescription(bearing),
+                        color = accent,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
+
+            // Speed Limit / Speed indicator badge
+            val speedKmh = ((location?.speedMps ?: 0f) * 3.6f).toInt()
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0F141F).copy(alpha = 0.88f))
+                    .border(1.dp, Color(0xFF243048), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "$speedKmh",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        text = "KM/H",
+                        color = Color(0xFF64748B),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ── 4. Floating Tactical Automotive Controls (Right Side) ──────────────
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 10.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Zoom In (+)
+            MapControlButton(
+                icon = Icons.Default.Add,
+                contentDescription = "Zoom In",
+                accent = accent,
+                onClick = {
+                    view.playSoundEffect(SoundEffectConstants.CLICK)
+                    mapViewInstance?.controller?.zoomIn()
+                }
+            )
+
+            // Zoom Out (-)
+            MapControlButton(
+                icon = Icons.Default.Remove,
+                contentDescription = "Zoom Out",
+                accent = accent,
+                onClick = {
+                    view.playSoundEffect(SoundEffectConstants.CLICK)
+                    mapViewInstance?.controller?.zoomOut()
+                }
+            )
+
+            // Recenter on Vehicle (◎)
+            MapControlButton(
+                icon = Icons.Default.MyLocation,
+                contentDescription = "Center on Vehicle",
+                accent = if (isFollowing) accent else Color(0xFF64748B),
+                onClick = {
+                    view.playSoundEffect(SoundEffectConstants.CLICK)
+                    isFollowing = true
+                    if (hasGps) {
+                        mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                    }
+                }
+            )
+
+            // Open Full Navigation App (↗)
+            MapControlButton(
+                icon = Icons.Default.OpenInNew,
+                contentDescription = "Open Full Navigation",
+                accent = Color(0xFF00E5FF),
+                onClick = {
+                    view.playSoundEffect(SoundEffectConstants.CLICK)
+                    launchFullNavApp(context, currentLat, currentLon)
+                }
+            )
         }
     }
 }
 
-fun launchNavApp(context: Context) {
-    val packages = listOf(
-        "org.osmand",
-        "org.osmand.plus",
-        "app.organicmaps",
-        "com.mapswithme.maps.pro",
-        "com.google.android.apps.maps"
-    )
-    for (pkg in packages) {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(pkg)
-        if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launchIntent)
-            return
+@Composable
+private fun MapControlButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF0F141F).copy(alpha = 0.90f))
+            .border(1.dp, Color(0xFF243048), RoundedCornerShape(10.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = accent,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+private fun getHeadingDescription(bearing: Float): String {
+    val b = (bearing % 360 + 360) % 360
+    return when {
+        b >= 337.5 || b < 22.5 -> "NORTH"
+        b < 67.5  -> "NE"
+        b < 112.5 -> "EAST"
+        b < 157.5 -> "SE"
+        b < 202.5 -> "SOUTH"
+        b < 247.5 -> "SW"
+        b < 292.5 -> "WEST"
+        else      -> "NW"
+    }
+}
+
+private fun launchFullNavApp(context: Context, lat: Double, lon: Double) {
+    try {
+        // 1. Try launching installed OpenStreetMap apps (OsmAnd, Organic Maps) or Google Maps
+        val geoUri = Uri.parse("geo:$lat,$lon?q=$lat,$lon(Vehicle)")
+        val intent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        try {
+            val mapsIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$lat,$lon")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(mapsIntent)
+        } catch (_: Exception) {
+            val fallback = Intent(Intent.ACTION_VIEW, Uri.parse("https://maps.google.com/?q=$lat,$lon")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            runCatching { context.startActivity(fallback) }
         }
     }
-
-    try {
-        val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=navigation")).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(geoIntent)
-    } catch (_: Exception) {}
 }

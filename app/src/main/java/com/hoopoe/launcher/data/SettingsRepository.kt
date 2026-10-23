@@ -63,6 +63,7 @@ class SettingsRepository(private val context: Context) {
         val SHOW_TRAVEL_DUA       = booleanPreferencesKey("show_travel_dua")
         val SHOW_FUEL_HUB         = booleanPreferencesKey("show_fuel_hub")
         val SHOW_NAV_MAP          = booleanPreferencesKey("show_nav_map")
+        val SHOW_RADIO            = booleanPreferencesKey("show_radio")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -144,7 +145,8 @@ class SettingsRepository(private val context: Context) {
                 playLogonAnimation       = prefs[Keys.PLAY_LOGON_ANIMATION] ?: defaults.playLogonAnimation,
                 showTravelDua            = prefs[Keys.SHOW_TRAVEL_DUA] ?: defaults.showTravelDua,
                 showFuelHub              = prefs[Keys.SHOW_FUEL_HUB] ?: defaults.showFuelHub,
-                showNavMap               = prefs[Keys.SHOW_NAV_MAP] ?: defaults.showNavMap
+                showNavMap               = prefs[Keys.SHOW_NAV_MAP] ?: defaults.showNavMap,
+                showRadio                = prefs[Keys.SHOW_RADIO] ?: defaults.showRadio
             )
     }
 
@@ -205,6 +207,7 @@ class SettingsRepository(private val context: Context) {
             prefs[Keys.SHOW_TRAVEL_DUA]       = s.showTravelDua
             prefs[Keys.SHOW_FUEL_HUB]         = s.showFuelHub
             prefs[Keys.SHOW_NAV_MAP]          = s.showNavMap
+            prefs[Keys.SHOW_RADIO]            = s.showRadio
     }
 
     suspend fun resetToDefaults() {

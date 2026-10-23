@@ -1,5 +1,6 @@
 package com.hoopoe.launcher.ui.widget
 
+import android.content.Intent
 import android.media.MediaMetadata
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -182,7 +183,7 @@ fun NowPlayingWidget(
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RadioDeck(
+fun RadioDeck(
     accent: Color,
     isDayMode: Boolean,
     hardwareRadio: com.hoopoe.launcher.viewmodel.LauncherViewModel.HardwareRadioState?,
@@ -525,6 +526,13 @@ private fun StandardMinimalPlayer(
     val contentTextColor = if (isDayMode) Color(0xFF111111) else MaterialTheme.colorScheme.onBackground
     val subTextColor = if (isDayMode) Color(0xFF666666) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.30f)
 
+    val hasNotificationAccess = remember(context) {
+        try {
+            val flat = android.provider.Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+            flat != null && flat.contains(context.packageName)
+        } catch (_: Exception) { false }
+    }
+
     Box(modifier = modifier) {
         if (!hasContent) {
             Column(
@@ -537,7 +545,7 @@ private fun StandardMinimalPlayer(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp)
+                        .padding(top = 14.dp)
                         .let { if (!isEditing) it.clickable { onTapToOpenApp() } else it },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -560,7 +568,7 @@ private fun StandardMinimalPlayer(
 
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Ready to Play",
+                            text = if (!hasNotificationAccess) "Enable Media Access" else "Smart Music Player",
                             style = MaterialTheme.typography.titleMedium,
                             color = contentTextColor,
                             maxLines = 1,
@@ -569,32 +577,60 @@ private fun StandardMinimalPlayer(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Touch to launch media player",
+                            text = if (!hasNotificationAccess) "Tap here to allow widget to read music" else "Tap Play to resume • Touch to browse",
                             style = MaterialTheme.typography.bodySmall,
-                            color = subTextColor,
+                            color = if (!hasNotificationAccess) Color(0xFFFF9100) else subTextColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            fontSize = 10.5.sp
+                            fontSize = 10.sp
                         )
                     }
                 }
 
-                // Ambient Equalizer Bars
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(14.dp)
-                        .padding(vertical = 2.dp)
-                ) {
-                    val barCount = 20
-                    val spacing = 2.dp.toPx()
-                    val barWidth = (size.width - (barCount - 1) * spacing) / barCount
-                    for (i in 0 until barCount) {
-                        drawRect(
-                            color = accent.copy(alpha = 0.25f),
-                            topLeft = androidx.compose.ui.geometry.Offset(i * (barWidth + spacing), size.height - 2.5.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(barWidth, 2.5.dp.toPx())
+                // Center: Status or Ambient Equalizer Bars
+                if (!hasNotificationAccess) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFF9100).copy(alpha = 0.12f))
+                            .border(1.dp, Color(0xFFFF9100).copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                            .clickable {
+                                try {
+                                    val intent = Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "TAP TO GRANT NOTIFICATION ACCESS FOR LIVE METADATA",
+                            color = Color(0xFFFF9100),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
                         )
+                    }
+                } else {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(12.dp)
+                            .padding(vertical = 2.dp)
+                    ) {
+                        val barCount = 20
+                        val spacing = 2.dp.toPx()
+                        val barWidth = (size.width - (barCount - 1) * spacing) / barCount
+                        for (i in 0 until barCount) {
+                            drawRect(
+                                color = accent.copy(alpha = 0.25f),
+                                topLeft = androidx.compose.ui.geometry.Offset(i * (barWidth + spacing), size.height - 2.5.dp.toPx()),
+                                size = androidx.compose.ui.geometry.Size(barWidth, 2.5.dp.toPx())
+                            )
+                        }
                     }
                 }
 
@@ -614,7 +650,7 @@ private fun StandardMinimalPlayer(
                             .clip(CircleShape)
                             .background(accent)
                     ) {
-                        IconButton(onClick = { if (!isEditing) { onPlayPause(); onTapToOpenApp() } }, modifier = Modifier.size(48.dp)) {
+                        IconButton(onClick = { if (!isEditing) onPlayPause() }, modifier = Modifier.size(48.dp)) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = "Play",

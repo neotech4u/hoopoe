@@ -43,7 +43,12 @@ fun SpeedometerWidget(
     val fuelPct by fuelRepo.fuelPercent.collectAsState()
 
     val maxSpeed     = if (isMetric) 200f else 124f
-    val speedDisplay = ((location?.speedMps ?: 0f) * if (isMetric) 3.6f else 2.237f).coerceAtLeast(0f)
+    val rawSpeed     = ((location?.speedMps ?: 0f) * if (isMetric) 3.6f else 2.237f).coerceAtLeast(0f)
+    val speedDisplay by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = rawSpeed,
+        animationSpec = androidx.compose.animation.core.tween(durationMillis = 350, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+        label = "gps_speed"
+    )
     val unitLabel    = if (isMetric) "KM/H" else "MPH"
     val trackAlpha   = if (isDayMode) 0.18f else 0.12f
 

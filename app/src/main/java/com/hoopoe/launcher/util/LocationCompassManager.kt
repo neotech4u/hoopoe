@@ -131,7 +131,7 @@ class LocationCompassManager(context: Context) {
         try {
             if (locationManager.allProviders.contains(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, 3000L, 5f, locationListener
+                    LocationManager.GPS_PROVIDER, 500L, 0f, locationListener
                 )
                 locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let {
                     locationListener.onLocationChanged(it)

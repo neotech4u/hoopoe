@@ -77,6 +77,7 @@ dependencies {
 
     // JSON serialization
     implementation("com.google.code.gson:gson:2.13.1")
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

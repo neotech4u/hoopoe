@@ -91,6 +91,7 @@ data class AppSettings(
     val showSpeedometer: Boolean = true,
     val showNavMap: Boolean = true,
     val showFuelHub: Boolean = true,
+    val showRadio: Boolean = false,
     val dayNightMode: DayNightMode = DayNightMode.DARK,
     val showPip: Boolean = false,
     val pipAppPackage: String = "",
@@ -133,6 +134,7 @@ fun AppSettings.activeWidgetIds(): Set<String> = buildSet {
     if (showSpeedometer) add("SPEEDOMETER")
     if (showNavMap) add("NAV_MAP")
     if (showNowPlaying) add("NOW_PLAYING")
+    if (showRadio) add("RADIO")
     if (showFuelHub) add("FUEL_HUB")
     if (showClock) add("CLOCK")
     if (showWeather) add("WEATHER")
