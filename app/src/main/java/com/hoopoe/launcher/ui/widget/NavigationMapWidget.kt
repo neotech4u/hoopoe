@@ -22,12 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
@@ -35,7 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hoopoe.launcher.util.LocationData
+import kotlinx.coroutines.flow.StateFlow
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -47,7 +45,34 @@ import java.io.File
  * Runs an actual interactive OpenStreetMap MapView directly inside the HUD slot.
  * Continuously tracks car GPS coordinates, centers on the vehicle, rotates vehicle marker,
  * and provides in-map zoom/recenter tactile buttons and one-tap launch to full navigation apps.
+ *
+ * Heavily optimized for low-RAM automotive head units:
+ * - Thread pool clamped to 2 download threads + 1 cache thread
+ * - Tile memory cache capped to 12 tiles
+ * - Center position updates rate-limited to 3m displacement (eliminates ValueAnimator CPU spin)
+ * - Vehicle arrow rotated via graphicsLayer draw phase
  */
+@Composable
+fun NavigationMapWidget(
+    locationFlow: StateFlow<LocationData?>,
+    bearingFlow: StateFlow<Float>,
+    compassOffset: Float = 0f,
+    accent: Color,
+    isDayMode: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val location by locationFlow.collectAsStateWithLifecycle()
+    val rawBearing by bearingFlow.collectAsStateWithLifecycle()
+    val bearing = (rawBearing + compassOffset + 360f) % 360f
+    NavigationMapWidget(
+        location = location,
+        bearing = bearing,
+        accent = accent,
+        isDayMode = isDayMode,
+        modifier = modifier
+    )
+}
+
 @Composable
 fun NavigationMapWidget(
     location: LocationData?,
@@ -65,14 +90,20 @@ fun NavigationMapWidget(
 
     var isFollowing by remember { mutableStateOf(true) }
     var mapViewInstance by remember { mutableStateOf<MapView?>(null) }
+    var lastCenteredLat by remember { mutableDoubleStateOf(0.0) }
+    var lastCenteredLon by remember { mutableDoubleStateOf(0.0) }
+    var lastDayModeState by remember { mutableStateOf<Boolean?>(null) }
 
-    // Initialize osmdroid storage configuration safely for Android 10+
+    // Initialize osmdroid storage & thread configuration safely for automotive SoCs
     remember {
         try {
             val config = Configuration.getInstance()
             config.osmdroidBasePath = context.noBackupFilesDir
             config.osmdroidTileCache = File(context.cacheDir, "osmdroid")
             config.userAgentValue = context.packageName
+            config.cacheMapTileCount = 12.toShort()
+            config.tileDownloadThreads = 2.toShort()
+            config.tileFileSystemThreads = 1.toShort()
         } catch (_: Exception) {}
         true
     }
@@ -96,6 +127,8 @@ fun NavigationMapWidget(
 
                     val startPoint = GeoPoint(currentLat, currentLon)
                     controller.setCenter(startPoint)
+                    lastCenteredLat = currentLat
+                    lastCenteredLon = currentLon
 
                     // Automotive OLED Night Mode Filter
                     if (!isDayMode) {
@@ -112,14 +145,36 @@ fun NavigationMapWidget(
                 }
             },
             update = { map ->
+                // Update night/day matrix if day mode toggled
+                if (lastDayModeState != isDayMode) {
+                    lastDayModeState = isDayMode
+                    if (!isDayMode) {
+                        val nightMatrix = ColorMatrix(floatArrayOf(
+                            -0.78f, 0f, 0f, 0f, 220f,
+                            0f, -0.78f, 0f, 0f, 225f,
+                            0f, 0f, -0.78f, 0f, 240f,
+                            0f, 0f, 0f, 1f, 0f
+                        ))
+                        map.overlayManager.tilesOverlay.setColorFilter(ColorMatrixColorFilter(nightMatrix))
+                    } else {
+                        map.overlayManager.tilesOverlay.setColorFilter(null)
+                    }
+                }
+
+                // Update position smoothly without CPU animator thrashing
                 if (hasGps && isFollowing) {
-                    val geoPoint = GeoPoint(currentLat, currentLon)
-                    map.controller.animateTo(geoPoint)
+                    val dist = FloatArray(1)
+                    android.location.Location.distanceBetween(lastCenteredLat, lastCenteredLon, currentLat, currentLon, dist)
+                    if (dist[0] >= 3.0f || (lastCenteredLat == 0.0 && lastCenteredLon == 0.0)) {
+                        lastCenteredLat = currentLat
+                        lastCenteredLon = currentLon
+                        map.controller.setCenter(GeoPoint(currentLat, currentLon))
+                    }
                 }
             }
         )
 
-        // Manage MapView Lifecycle
+        // Manage MapView Lifecycle safely to prevent memory / thread leaks
         DisposableEffect(mapViewInstance) {
             val map = mapViewInstance
             map?.onResume()
@@ -148,14 +203,14 @@ fun NavigationMapWidget(
                 )
             }
 
-            // Directional Vehicle Arrow rotated to bearing
+            // Directional Vehicle Arrow rotated to bearing via GPU layer (zero recompositions)
             Icon(
                 imageVector = Icons.Default.Navigation,
                 contentDescription = "Vehicle Heading",
                 tint = Color.White,
                 modifier = Modifier
                     .size(26.dp)
-                    .rotate(bearing)
+                    .graphicsLayer { rotationZ = bearing }
             )
         }
 
@@ -275,7 +330,9 @@ fun NavigationMapWidget(
                     view.playSoundEffect(SoundEffectConstants.CLICK)
                     isFollowing = true
                     if (hasGps) {
-                        mapViewInstance?.controller?.animateTo(GeoPoint(currentLat, currentLon))
+                        lastCenteredLat = currentLat
+                        lastCenteredLon = currentLon
+                        mapViewInstance?.controller?.setCenter(GeoPoint(currentLat, currentLon))
                     }
                 }
             )

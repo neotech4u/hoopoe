@@ -26,8 +26,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hoopoe.launcher.data.TripFuelRepository
 import com.hoopoe.launcher.util.LocationData
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.cos
 import kotlin.math.sin
+
+@Composable
+fun SpeedometerWidget(
+    locationFlow: StateFlow<LocationData?>,
+    isMetric: Boolean,
+    accent: Color,
+    isDayMode: Boolean = false,
+    digitalOnly: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val location by locationFlow.collectAsStateWithLifecycle()
+    SpeedometerWidget(
+        location = location,
+        isMetric = isMetric,
+        accent = accent,
+        isDayMode = isDayMode,
+        digitalOnly = digitalOnly,
+        modifier = modifier
+    )
+}
 
 @Composable
 fun SpeedometerWidget(
@@ -64,9 +86,9 @@ fun SpeedometerWidget(
     var speedHistory by remember { mutableStateOf(List(25) { 0f }) }
     var peakSpeed by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(speedDisplay) {
-        if (speedDisplay > peakSpeed) peakSpeed = speedDisplay
-        speedHistory = (speedHistory.drop(1) + speedDisplay)
+    LaunchedEffect(rawSpeed) {
+        if (rawSpeed > peakSpeed) peakSpeed = rawSpeed
+        speedHistory = (speedHistory.drop(1) + rawSpeed)
     }
 
     val simulatedRpm = (speedDisplay * 36f + 850f).coerceIn(850f, 6800f)

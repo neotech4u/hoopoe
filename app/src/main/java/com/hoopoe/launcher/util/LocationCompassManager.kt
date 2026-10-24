@@ -39,6 +39,20 @@ class LocationCompassManager(context: Context) {
     private var bearingSin   = 0f
     private var bearingCos   = 1f   // initial: pointing north
     private var lastLocationForBearing: Location? = null
+    private var lastEmittedBearing = 0f
+    private var lastBearingEmitTime = 0L
+
+    private fun emitBearing(raw: Float) {
+        val normalized = ((raw % 360f) + 360f) % 360f
+        val now = System.currentTimeMillis()
+        val diff = kotlin.math.abs(normalized - lastEmittedBearing)
+        val shortestDiff = if (diff > 180f) 360f - diff else diff
+        if (now - lastBearingEmitTime >= 150L && shortestDiff >= 1.5f) {
+            lastBearingEmitTime = now
+            lastEmittedBearing = normalized
+            _bearing.value = normalized
+        }
+    }
 
     private val sensorListener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
@@ -60,7 +74,8 @@ class LocationCompassManager(context: Context) {
                 val alpha = 0.10f
                 bearingSin = alpha * sin(azimuthRad).toFloat() + (1f - alpha) * bearingSin
                 bearingCos = alpha * cos(azimuthRad).toFloat() + (1f - alpha) * bearingCos
-                _bearing.value = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
+                val computed = ((Math.toDegrees(atan2(bearingSin.toDouble(), bearingCos.toDouble())) + 360) % 360).toFloat()
+                emitBearing(computed)
             }
         }
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -68,28 +83,42 @@ class LocationCompassManager(context: Context) {
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(loc: Location) {
-            _location.value = LocationData(
-                latitude  = loc.latitude,
-                longitude = loc.longitude,
-                altitude  = loc.altitude,
-                accuracy  = loc.accuracy,
-                speedMps  = if (loc.hasSpeed() && loc.speed >= 0f) {
-                    loc.speed
-                } else {
-                    val lastLoc = lastLocationForBearing
-                    if (lastLoc != null && loc.time > lastLoc.time) {
-                        val dtSec = (loc.time - lastLoc.time) / 1000f
-                        if (dtSec in 0.4f..10f) {
-                            val distM = lastLoc.distanceTo(loc)
-                            if (distM > 1.5f) distM / dtSec else 0f
-                        } else 0f
+            val calculatedSpeed = if (loc.hasSpeed() && loc.speed >= 0f) {
+                loc.speed
+            } else {
+                val lastLoc = lastLocationForBearing
+                if (lastLoc != null && loc.time > lastLoc.time) {
+                    val dtSec = (loc.time - lastLoc.time) / 1000f
+                    if (dtSec in 0.4f..10f) {
+                        val distM = lastLoc.distanceTo(loc)
+                        if (distM > 1.5f) distM / dtSec else 0f
                     } else 0f
-                }
-            )
+                } else 0f
+            }
+
+            val current = _location.value
+            val shouldEmit = if (current == null) {
+                true
+            } else {
+                val dist = FloatArray(1)
+                Location.distanceBetween(current.latitude, current.longitude, loc.latitude, loc.longitude, dist)
+                dist[0] >= 1.0f || kotlin.math.abs(current.speedMps - calculatedSpeed) >= 0.2f
+            }
+
+            if (shouldEmit) {
+                _location.value = LocationData(
+                    latitude  = loc.latitude,
+                    longitude = loc.longitude,
+                    altitude  = loc.altitude,
+                    accuracy  = loc.accuracy,
+                    speedMps  = calculatedSpeed
+                )
+            }
 
             // 1. If GPS has a hardware-computed bearing, use it (works offline)
             if (loc.hasBearing() && loc.bearing != 0f) {
-                _bearing.value = loc.bearing
+                emitBearing(loc.bearing)
+                lastLocationForBearing = loc
             } else {
                 // 2. Math fallback: Calculate bearing between consecutive location points (works offline & sensor-less!)
                 val lastLoc = lastLocationForBearing
@@ -98,8 +127,7 @@ class LocationCompassManager(context: Context) {
                     // Ensure the distance is enough to overcome GPS jitter (e.g. 3 meters)
                     if (distance > 3f) {
                         val computedBearing = lastLoc.bearingTo(loc)
-                        // Normalize bearing to 0-360
-                        _bearing.value = (computedBearing + 360f) % 360f
+                        emitBearing(computedBearing)
                         lastLocationForBearing = loc
                     }
                 } else {
@@ -120,10 +148,10 @@ class LocationCompassManager(context: Context) {
     fun start() {
         // Sensors
         sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
-            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
+            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
         sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)?.let {
-            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI)
+            sensorManager.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
 
         // Location — Robust offline-first registration
@@ -131,7 +159,7 @@ class LocationCompassManager(context: Context) {
         try {
             if (locationManager.allProviders.contains(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER, 500L, 0f, locationListener
+                    LocationManager.GPS_PROVIDER, 1000L, 0.5f, locationListener
                 )
                 locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let {
                     locationListener.onLocationChanged(it)

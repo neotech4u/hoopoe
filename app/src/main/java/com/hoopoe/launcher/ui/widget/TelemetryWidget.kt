@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -17,6 +20,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hoopoe.launcher.util.LocationData
 import kotlin.math.abs
+
+@Composable
+fun TelemetryWidget(
+    locationFlow: StateFlow<LocationData?>,
+    bearingFlow: StateFlow<Float>,
+    compassOffset: Float = 0f,
+    accent: Color,
+    isDayMode: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val location by locationFlow.collectAsStateWithLifecycle()
+    val rawBearing by bearingFlow.collectAsStateWithLifecycle()
+    val bearing = (rawBearing + compassOffset + 360f) % 360f
+    TelemetryWidget(
+        location = location,
+        bearing = bearing,
+        accent = accent,
+        isDayMode = isDayMode,
+        modifier = modifier
+    )
+}
 
 @Composable
 fun TelemetryWidget(

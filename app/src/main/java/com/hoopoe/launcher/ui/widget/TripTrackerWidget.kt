@@ -23,7 +23,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hoopoe.launcher.util.LocationData
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
+
+@Composable
+fun TripTrackerWidget(
+    locationFlow: StateFlow<LocationData?>,
+    isMetric: Boolean,
+    accent: Color,
+    isDayMode: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val location by locationFlow.collectAsStateWithLifecycle()
+    TripTrackerWidget(
+        location = location,
+        isMetric = isMetric,
+        accent = accent,
+        isDayMode = isDayMode,
+        modifier = modifier
+    )
+}
 
 @Composable
 fun TripTrackerWidget(

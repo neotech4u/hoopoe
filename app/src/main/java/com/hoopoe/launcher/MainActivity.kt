@@ -72,8 +72,6 @@ class MainActivity : ComponentActivity() {
             val appsLoading by vm.appsLoading.collectAsStateWithLifecycle()
             val nowPlaying  by vm.nowPlaying.collectAsStateWithLifecycle()
             val weather     by vm.weather.collectAsStateWithLifecycle()
-            val location    by vm.location.collectAsStateWithLifecycle()
-            val bearing     by vm.compassBearing.collectAsStateWithLifecycle()
             val isWifi      by vm.isWifi.collectAsStateWithLifecycle()
             val isData      by vm.isData.collectAsStateWithLifecycle()
             val isDayModeVM by vm.isDayMode.collectAsStateWithLifecycle()
@@ -221,8 +219,8 @@ class MainActivity : ComponentActivity() {
                                         settings            = settings,
                                         weather             = weather,
                                         nowPlaying          = nowPlaying,
-                                        location            = location,
-                                        bearing             = bearing,
+                                        locationFlow        = vm.location,
+                                        bearingFlow         = vm.compassBearing,
                                         isWifi              = isWifi,
                                         isData              = isData,
                                         isDayMode           = isDayMode,

@@ -12,23 +12,39 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.hoopoe.launcher.R
 
+/**
+ * Automotive boot logon animation.
+ * Releases hardware video decoder handles upon completion, skip, or disposal
+ * to prevent mediaserver instability on low-RAM head units.
+ */
 @Composable
 fun LogonScreen(
     onFinished: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var hasFinished by remember { mutableStateOf(false) }
+    var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
 
     fun finishSafely() {
         if (!hasFinished) {
             hasFinished = true
+            try {
+                videoViewRef?.stopPlayback()
+            } catch (_: Exception) {}
             onFinished()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                videoViewRef?.stopPlayback()
+            } catch (_: Exception) {}
         }
     }
 
@@ -47,6 +63,7 @@ fun LogonScreen(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 VideoView(ctx).apply {
+                    videoViewRef = this
                     val uri = Uri.parse("android.resource://${ctx.packageName}/${R.raw.hoopoe_logon}")
                     setVideoURI(uri)
                     setOnCompletionListener {

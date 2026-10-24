@@ -24,6 +24,26 @@ import com.hoopoe.launcher.util.LocationData
 import kotlin.math.*
 
 import androidx.compose.material3.MaterialTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
+
+@Composable
+fun AltimeterWidget(
+    locationFlow: StateFlow<LocationData?>,
+    isMetric: Boolean,
+    accent: Color,
+    isDayMode: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val location by locationFlow.collectAsStateWithLifecycle()
+    AltimeterWidget(
+        location = location,
+        isMetric = isMetric,
+        accent = accent,
+        isDayMode = isDayMode,
+        modifier = modifier
+    )
+}
 
 @Composable
 fun AltimeterWidget(
@@ -56,18 +76,20 @@ fun AltimeterWidget(
                 gravBuf[0] = alpha * event.values[0] + (1f - alpha) * gravBuf[0]
                 gravBuf[1] = alpha * event.values[1] + (1f - alpha) * gravBuf[1]
                 gravBuf[2] = alpha * event.values[2] + (1f - alpha) * gravBuf[2]
-                rollDeg  = Math.toDegrees(
+                val newRoll = Math.toDegrees(
                     atan2(gravBuf[1].toDouble(), gravBuf[2].toDouble())
                 ).toFloat()
-                pitchDeg = Math.toDegrees(
+                val newPitch = Math.toDegrees(
                     atan2(-gravBuf[0].toDouble(),
                         sqrt(gravBuf[1].toDouble().pow(2) + gravBuf[2].toDouble().pow(2)))
                 ).toFloat()
+                if (kotlin.math.abs(newRoll - rollDeg) >= 1.0f) rollDeg = newRoll
+                if (kotlin.math.abs(newPitch - pitchDeg) >= 1.0f) pitchDeg = newPitch
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
         }
         sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
-            sm.registerListener(listener, it, SensorManager.SENSOR_DELAY_UI)
+            sm.registerListener(listener, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
         onDispose { sm.unregisterListener(listener) }
     }

@@ -5,6 +5,8 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.hoopoe.launcher.model.NowPlayingState
@@ -14,10 +16,17 @@ import kotlinx.coroutines.flow.StateFlow
 class MediaListenerService : NotificationListenerService() {
 
     private var activeController: MediaController? = null
+    private val debounceHandler = Handler(Looper.getMainLooper())
+    private val refreshRunnable = Runnable { refreshNowPlaying() }
+
+    private fun scheduleRefresh(delayMs: Long = 400L) {
+        debounceHandler.removeCallbacks(refreshRunnable)
+        debounceHandler.postDelayed(refreshRunnable, delayMs)
+    }
 
     private val controllerCallback = object : MediaController.Callback() {
-        override fun onPlaybackStateChanged(state: PlaybackState?) = refreshNowPlaying()
-        override fun onMetadataChanged(metadata: MediaMetadata?)   = refreshNowPlaying()
+        override fun onPlaybackStateChanged(state: PlaybackState?) = updateFromController(activeController)
+        override fun onMetadataChanged(metadata: MediaMetadata?)   = updateFromController(activeController)
         override fun onSessionDestroyed()                          = refreshNowPlaying()
     }
 
@@ -36,10 +45,11 @@ class MediaListenerService : NotificationListenerService() {
         _nowPlaying.value = null
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?)  { refreshNowPlaying() }
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) { refreshNowPlaying() }
+    override fun onNotificationPosted(sbn: StatusBarNotification?)  { scheduleRefresh(400L) }
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) { scheduleRefresh(400L) }
 
     override fun onDestroy() {
+        debounceHandler.removeCallbacks(refreshRunnable)
         instance = null
         clearController()
         // Clear the static flow so the UI doesn't keep showing a dead session
@@ -78,7 +88,7 @@ class MediaListenerService : NotificationListenerService() {
             activeController = active
             active.registerCallback(
                 controllerCallback,
-                android.os.Handler(android.os.Looper.getMainLooper())
+                Handler(Looper.getMainLooper())
             )
         }
 

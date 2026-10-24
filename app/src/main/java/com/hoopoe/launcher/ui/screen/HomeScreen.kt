@@ -42,6 +42,7 @@ import com.hoopoe.launcher.data.GRID_ROWS
 import com.hoopoe.launcher.data.WidgetConfig
 import com.hoopoe.launcher.model.NowPlayingState
 import com.hoopoe.launcher.model.WeatherState
+import kotlinx.coroutines.flow.StateFlow
 import com.hoopoe.launcher.ui.theme.LocalDayMode
 import com.hoopoe.launcher.ui.widget.*
 import java.util.Calendar
@@ -105,8 +106,8 @@ fun HomeScreen(
     settings: AppSettings,
     weather: WeatherState?,
     nowPlaying: NowPlayingState?,
-    location: LocationData?,
-    bearing: Float,
+    locationFlow: StateFlow<LocationData?>,
+    bearingFlow: StateFlow<Float>,
     isWifi: Boolean,
     isData: Boolean,
     isDayMode: Boolean = false,
@@ -634,33 +635,35 @@ fun HomeScreen(
                             )
                         }
                         "TELEMETRY" -> TelemetryWidget(
-                            location  = location,
-                            bearing   = (bearing + settings.compassOffset + 360f) % 360f,
-                            accent    = accent,
-                            isDayMode = isDayMode,
-                            modifier  = Modifier.fillMaxSize()
+                            locationFlow  = locationFlow,
+                            bearingFlow   = bearingFlow,
+                            compassOffset = settings.compassOffset,
+                            accent        = accent,
+                            isDayMode     = isDayMode,
+                            modifier      = Modifier.fillMaxSize()
                         )
                         "ALTIMETER" -> AltimeterWidget(
-                            location  = location,
-                            isMetric  = settings.unitSystem == com.hoopoe.launcher.data.UnitSystem.METRIC,
-                            accent    = accent,
-                            isDayMode = isDayMode,
-                            modifier  = Modifier.fillMaxSize()
+                            locationFlow  = locationFlow,
+                            isMetric      = settings.unitSystem == com.hoopoe.launcher.data.UnitSystem.METRIC,
+                            accent        = accent,
+                            isDayMode     = isDayMode,
+                            modifier      = Modifier.fillMaxSize()
                         )
                         "SPEEDOMETER" -> SpeedometerWidget(
-                            location  = location,
-                            isMetric  = settings.unitSystem == com.hoopoe.launcher.data.UnitSystem.METRIC,
-                            accent    = accent,
-                            isDayMode = isDayMode,
-                            digitalOnly = settings.speedometerDigitalOnly,
-                            modifier  = Modifier.fillMaxSize()
+                            locationFlow  = locationFlow,
+                            isMetric      = settings.unitSystem == com.hoopoe.launcher.data.UnitSystem.METRIC,
+                            accent        = accent,
+                            isDayMode     = isDayMode,
+                            digitalOnly   = settings.speedometerDigitalOnly,
+                            modifier      = Modifier.fillMaxSize()
                         )
                         "NAV_MAP" -> NavigationMapWidget(
-                            location  = location,
-                            bearing   = (bearing + settings.compassOffset + 360f) % 360f,
-                            accent    = accent,
-                            isDayMode = isDayMode,
-                            modifier  = Modifier.fillMaxSize()
+                            locationFlow  = locationFlow,
+                            bearingFlow   = bearingFlow,
+                            compassOffset = settings.compassOffset,
+                            accent        = accent,
+                            isDayMode     = isDayMode,
+                            modifier      = Modifier.fillMaxSize()
                         )
                         "VITALS" -> VitalsWidget(
                             accent    = accent,
@@ -669,11 +672,11 @@ fun HomeScreen(
                             modifier  = Modifier.fillMaxSize()
                         )
                         "TRIP_TRACKER" -> TripTrackerWidget(
-                            location  = location,
-                            isMetric  = settings.unitSystem == com.hoopoe.launcher.data.UnitSystem.METRIC,
-                            accent    = accent,
-                            isDayMode = isDayMode,
-                            modifier  = Modifier.fillMaxSize()
+                            locationFlow  = locationFlow,
+                            isMetric      = settings.unitSystem == com.hoopoe.launcher.data.UnitSystem.METRIC,
+                            accent        = accent,
+                            isDayMode     = isDayMode,
+                            modifier      = Modifier.fillMaxSize()
                         )
                         "FUEL_HUB" -> FuelHubWidget(
                             accent    = accent,

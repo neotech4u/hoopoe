@@ -42,6 +42,28 @@ fun VitalsWidget(
     var ramUsedPercent by remember { mutableFloatStateOf(45f) }
     var ramDisplayGb by remember { mutableStateOf("0.0G") }
     var temperature by remember { mutableFloatStateOf(35f) }
+    var batteryTemp by remember { mutableFloatStateOf(-1f) }
+
+    // Register battery temperature receiver once to avoid binder churn in polling loop
+    DisposableEffect(Unit) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_BATTERY_CHANGED) {
+                    val raw = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+                    if (raw > 0) batteryTemp = raw / 10f
+                }
+            }
+        }
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val sticky = context.registerReceiver(receiver, filter)
+        sticky?.let { intent ->
+            val raw = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+            if (raw > 0) batteryTemp = raw / 10f
+        }
+        onDispose {
+            try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
+        }
+    }
 
     // CPU Stat Tracking variables
     var lastCpuTime by remember { mutableLongStateOf(0L) }
@@ -72,16 +94,10 @@ fun VitalsWidget(
         }
         
         if (foundTemp == -1f) {
-            // Fallback: Battery Temp
-            try {
-                val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                if (intent != null) {
-                    val rawTemp = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
-                    if (rawTemp > 0) {
-                        foundTemp = rawTemp / 10f
-                    }
-                }
-            } catch (_: Exception) {}
+            // Fallback: Battery Temp from broadcast receiver (zero binder polling churn)
+            if (batteryTemp > 0f) {
+                foundTemp = batteryTemp
+            }
         }
         
         if (foundTemp != -1f) foundTemp else 38f // global default fallback
